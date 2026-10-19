@@ -20,6 +20,7 @@ export function buildResultModal({ text, pendingNames = [], error = "" }) {
     type: "modal",
     callback_id: "emoji_translation_result",
     title: { type: "plain_text", text: "SNS용 이모지 변환" },
+    submit: { type: "plain_text", text: "확인" },
     close: { type: "plain_text", text: "닫기" },
     blocks: [
       {

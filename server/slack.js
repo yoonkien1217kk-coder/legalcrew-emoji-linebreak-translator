@@ -47,7 +47,12 @@ export async function slackApi(
   });
   const result = await response.json();
   if (!response.ok || result.ok !== true) {
-    throw new Error(`Slack API error: ${result.error || response.status}`);
+    const details = Array.isArray(result.response_metadata?.messages)
+      ? ` (${result.response_metadata.messages.join("; ")})`
+      : "";
+    throw new Error(
+      `Slack API ${method} error: ${result.error || response.status}${details}`,
+    );
   }
   return result;
 }

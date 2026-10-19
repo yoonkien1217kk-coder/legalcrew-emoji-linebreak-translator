@@ -49,13 +49,32 @@ test("sends JSON to Slack and returns its successful payload", async () => {
   });
 });
 
-test("throws only the Slack error code", async () => {
+test("reports the Slack method and safe validation details", async () => {
   const fetchImpl = async () =>
-    new Response(JSON.stringify({ ok: false, error: "invalid_trigger_id" }));
+    new Response(
+      JSON.stringify({
+        ok: false,
+        error: "invalid_arguments",
+        response_metadata: {
+          messages: ["[ERROR] must provide submit when an input block is used"],
+        },
+      }),
+    );
 
   await assert.rejects(
-    slackApi("views.open", {}, { token: "x", fetchImpl }),
-    /Slack API error: invalid_trigger_id/,
+    slackApi(
+      "views.open",
+      { trigger_id: "do-not-log-this" },
+      { token: "xoxb-do-not-log-this", fetchImpl },
+    ),
+    (error) => {
+      assert.match(error.message, /views\.open/);
+      assert.match(error.message, /invalid_arguments/);
+      assert.match(error.message, /must provide submit/);
+      assert.doesNotMatch(error.message, /xoxb-do-not-log-this/);
+      assert.doesNotMatch(error.message, /do-not-log-this/);
+      return true;
+    },
   );
 });
 

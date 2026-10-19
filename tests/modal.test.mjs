@@ -9,6 +9,7 @@ test("builds a multiline copy field with the translated result", () => {
   assert.equal(view.type, "modal");
   assert.equal(view.title.text, "SNS용 이모지 변환");
   assert.equal(view.callback_id, "emoji_translation_result");
+  assert.deepEqual(view.submit, { type: "plain_text", text: "확인" });
   assert.deepEqual(view.blocks[0].element, {
     type: "plain_text_input",
     action_id: "translated_text",
