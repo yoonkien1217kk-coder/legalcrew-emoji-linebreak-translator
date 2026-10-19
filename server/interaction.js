@@ -1,5 +1,5 @@
 import { translateSlackEmoji } from "../dist/translator.js";
-import { buildResultMessage, buildResultModal } from "./modal.js";
+import { buildDraftModal, buildResultMessage, buildResultModal } from "./modal.js";
 
 function emojiValues(snapshot) {
   return Object.fromEntries(
@@ -21,24 +21,30 @@ export async function handleShortcut(payload, dependencies) {
   const cachedMappings = emojiValues(dependencies.getCachedMappings());
   const initial = translateSlackEmoji(payload.message?.text || "", cachedMappings);
   if (payload.response_url && dependencies.respond) {
-    const { resolved } = initial.unknown.length
-      ? await resolveUnknown(initial.unknown, dependencies)
-      : { resolved: {} };
+    const opened = await dependencies.openView({
+      trigger_id: payload.trigger_id,
+      view: buildDraftModal({
+        text: initial.output,
+        responseUrl: payload.response_url,
+        pendingNames: initial.unknown,
+      }),
+    });
+    if (initial.unknown.length === 0) return;
+
+    const { resolved, error } = await resolveUnknown(initial.unknown, dependencies);
     const finalResult = translateSlackEmoji(payload.message?.text || "", {
       ...cachedMappings,
       ...resolved,
     });
-    try {
-      await dependencies.respond(
-        payload.response_url,
-        buildResultMessage({ text: finalResult.output }),
-      );
-    } catch {
-      await dependencies.openView({
-        trigger_id: payload.trigger_id,
-        view: buildResultModal({ text: finalResult.output }),
-      });
-    }
+    await dependencies.updateView({
+      view_id: opened.view.id,
+      hash: opened.view.hash,
+      view: buildDraftModal({
+        text: finalResult.output,
+        responseUrl: payload.response_url,
+        error,
+      }),
+    });
     return;
   }
 
@@ -62,6 +68,38 @@ export async function handleShortcut(payload, dependencies) {
     hash: opened.view.hash,
     view: buildResultModal({ text: finalResult.output, error }),
   });
+}
+
+function richTextToPlain(value) {
+  if (!value || !Array.isArray(value.elements)) return "";
+  const elementText = (element) => {
+    if (element.type === "text") return element.text || "";
+    if (element.type === "emoji") return `:${element.name}:`;
+    if (element.type === "link") return element.text || element.url || "";
+    if (Array.isArray(element.elements)) {
+      return element.elements.map(elementText).join("");
+    }
+    return "";
+  };
+  return value.elements.map(elementText).join("\n");
+}
+
+export async function handleDraftSubmission(payload, dependencies) {
+  if (payload?.type !== "view_submission" ||
+      payload.view?.callback_id !== "emoji_translation_draft") return;
+
+  const responseUrl = payload.view.private_metadata;
+  if (!responseUrl) throw new Error("Slack draft has no response URL");
+  const values = payload.view.state?.values || {};
+  const input = values.draft?.translated_text || values.draft_pending?.translated_text;
+  const draft = richTextToPlain(input?.value);
+  const cachedMappings = emojiValues(dependencies.getCachedMappings());
+  const initial = translateSlackEmoji(draft, cachedMappings);
+  const { resolved } = initial.unknown.length
+    ? await resolveUnknown(initial.unknown, dependencies)
+    : { resolved: {} };
+  const finalResult = translateSlackEmoji(draft, { ...cachedMappings, ...resolved });
+  await dependencies.respond(responseUrl, buildResultMessage({ text: finalResult.output }));
 }
 
 async function resolveUnknown(unknown, dependencies) {

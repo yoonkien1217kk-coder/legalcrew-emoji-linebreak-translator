@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 
 import { createCustomEmojiResolver, createOpenAIAnalyzer } from "./custom-emoji.js";
-import { handleShortcut } from "./interaction.js";
+import { handleDraftSubmission, handleShortcut } from "./interaction.js";
 import { createMappingStore } from "./mapping-store.js";
 import { slackApi, slackResponse, verifySlackRequest } from "./slack.js";
 
@@ -107,8 +107,8 @@ export function createProductionApp({ fetchImpl = globalThis.fetch } = {}) {
   return createApp({
     signingSecret,
     teamId: process.env.SLACK_TEAM_ID || "",
-    handleInteraction: (payload) =>
-      handleShortcut(payload, {
+    handleInteraction: (payload) => {
+      const dependencies = {
         getCachedMappings: () => store.snapshot(),
         openView: (body) => callSlack("views.open", body),
         updateView: (body) => callSlack("views.update", body),
@@ -116,7 +116,11 @@ export function createProductionApp({ fetchImpl = globalThis.fetch } = {}) {
         listEmoji: async () => (await callSlack("emoji.list", {})).emoji || {},
         resolveCustom: (names, emojiIndex) =>
           createCustomEmojiResolver({ emojiIndex, store, analyze }).resolve(names),
-      }),
+      };
+      return payload?.type === "view_submission"
+        ? handleDraftSubmission(payload, dependencies)
+        : handleShortcut(payload, dependencies);
+    },
   });
 }
 

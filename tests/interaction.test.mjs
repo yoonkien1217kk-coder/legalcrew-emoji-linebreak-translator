@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { handleShortcut } from "../server/interaction.js";
+import { handleShortcut, handleDraftSubmission } from "../server/interaction.js";
 
 const shortcut = {
   type: "message_action",
@@ -52,13 +52,18 @@ test("opens a safe modal before resolving only unknown aliases", async () => {
   assert.equal(copyResult(updatedView), "기분 😃 🩷💃");
 });
 
-test("sends one private result message when the shortcut supplies a response URL", async () => {
+test("opens an editable draft before the private result is posted", async () => {
   const events = [];
-  let response;
+  let initialView;
+  let updatedView;
 
   await handleShortcut({ ...shortcut, response_url: "https://hooks.slack.test/private" }, {
     getCachedMappings: () => ({}),
-    openView: async () => { throw new Error("unexpected modal"); },
+    openView: async ({ view }) => {
+      events.push("open");
+      initialView = view;
+      return { view: { id: "V1", hash: "h1" } };
+    },
     listEmoji: async () => {
       events.push("list");
       return { 커비춤: "https://example.com/kirby.png" };
@@ -67,20 +72,21 @@ test("sends one private result message when the shortcut supplies a response URL
       events.push("resolve");
       return { 커비춤: "🩷💃" };
     },
-    respond: async (url, message) => {
-      events.push("respond");
-      response = { url, message };
+    updateView: async ({ view }) => {
+      events.push("update");
+      updatedView = view;
     },
+    respond: async () => { throw new Error("unexpected post"); },
   });
 
-  assert.deepEqual(events, ["list", "resolve", "respond"]);
-  assert.equal(response.url, "https://hooks.slack.test/private");
-  assert.equal(response.message.text, "기분 😃 🩷💃");
-  assert.equal(response.message.response_type, "ephemeral");
+  assert.deepEqual(events, ["open", "list", "resolve", "update"]);
+  assert.equal(initialView.callback_id, "emoji_translation_draft");
+  assert.equal(initialView.private_metadata, "https://hooks.slack.test/private");
+  assert.equal(updatedView.blocks[0].element.initial_value.elements[0].elements[0].text, "기분 😃 🩷💃");
 });
 
 test("standard emoji results do not require the custom emoji API", async () => {
-  let result;
+  let view;
   await handleShortcut({
     ...shortcut,
     message: { text: ":smiley: :kr:" },
@@ -88,9 +94,35 @@ test("standard emoji results do not require the custom emoji API", async () => {
   }, {
     getCachedMappings: () => ({}),
     listEmoji: async () => { throw new Error("unexpected emoji lookup"); },
-    respond: async (_url, message) => { result = message.text; },
+    openView: async ({ view: draft }) => { view = draft; },
+    respond: async () => { throw new Error("unexpected post"); },
   });
-  assert.equal(result, "😃 🇰🇷");
+  assert.equal(view.blocks[0].element.initial_value.elements[0].elements[0].text, "😃 🇰🇷");
+});
+
+test("posts the edited draft privately after modal submission", async () => {
+  let response;
+  await handleDraftSubmission({
+    type: "view_submission",
+    view: {
+      callback_id: "emoji_translation_draft",
+      private_metadata: "https://hooks.slack.test/private",
+      state: { values: { draft: { translated_text: { value: {
+        type: "rich_text",
+        elements: [{ type: "rich_text_section", elements: [
+          { type: "text", text: "수정 😃 " },
+          { type: "emoji", name: "kr" },
+        ] }],
+      } } } } },
+    },
+  }, {
+    getCachedMappings: () => ({}),
+    respond: async (url, message) => { response = { url, message }; },
+  });
+
+  assert.equal(response.url, "https://hooks.slack.test/private");
+  assert.equal(response.message.response_type, "ephemeral");
+  assert.equal(response.message.text, "수정 😃 🇰🇷");
 });
 
 test("ignores unrelated interactions", async () => {
