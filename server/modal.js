@@ -26,21 +26,11 @@ export function buildResultModal({ text, pendingNames = [], error = "" }) {
     close: { type: "plain_text", text: "닫기" },
     blocks: [
       {
-        type: "rich_text",
-        block_id: "desktop_copy_result",
-        elements: [
-          {
-            type: "rich_text_preformatted",
-            elements: [{ type: "text", text: resultText }],
-          },
-        ],
-      },
-      {
         type: "input",
         block_id: pendingNames.length
           ? "translated_text_block_pending"
           : "translated_text_block",
-        label: { type: "plain_text", text: "모바일 복사용" },
+        label: { type: "plain_text", text: "복사할 결과" },
         optional: true,
         element: {
           type: "plain_text_input",
