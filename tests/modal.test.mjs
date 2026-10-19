@@ -9,9 +9,24 @@ test("shows a fixed Unicode preview with a private-post action", () => {
 
   assert.equal(view.callback_id, "emoji_translation_draft");
   assert.equal(view.submit.text, "나에게만 올리기");
-  assert.equal(view.private_metadata, "https://hooks.slack.test/private");
-  assert.deepEqual(preview.text, { type: "plain_text", text: "안녕 😃", emoji: false });
+  assert.deepEqual(JSON.parse(view.private_metadata), {
+    url: "https://hooks.slack.test/private",
+    text: "안녕 😃",
+  });
+  assert.deepEqual(preview.elements, [{
+    type: "rich_text_section",
+    elements: [{ type: "text", text: "안녕 😃" }],
+  }]);
   assert.equal(view.blocks.some((block) => block.type === "input"), false);
+});
+
+test("keeps modal metadata within Slack's limit for long results", () => {
+  const view = buildDraftModal({
+    text: "가".repeat(3_100),
+    responseUrl: "https://hooks.slack.test/private",
+  });
+  assert.ok(view.private_metadata.length <= 3_000);
+  assert.ok(view.blocks[0].elements[0].elements[0].text.length <= 3_000);
 });
 
 test("builds a private, copyable message containing only the translated result", () => {

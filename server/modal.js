@@ -29,20 +29,26 @@ export function buildResultMessage({ text }) {
 
 export function buildDraftModal({ text, responseUrl, pendingNames = [], error = "" }) {
   const resultText = truncateForSlack(text) || " ";
+  const metadataWithText = JSON.stringify({ url: responseUrl, text: resultText });
   const contextText = pendingNames.length
     ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 결과가 갱신됩니다.`
     : error || "결과를 확인하고 버튼을 누르면 나에게만 복사용 메시지가 표시됩니다.";
   return {
     type: "modal",
     callback_id: "emoji_translation_draft",
-    private_metadata: responseUrl,
+    private_metadata: metadataWithText.length <= 3_000
+      ? metadataWithText
+      : responseUrl,
     title: { type: "plain_text", text: "SNS용 이모지 변환" },
     submit: { type: "plain_text", text: "나에게만 올리기" },
     close: { type: "plain_text", text: "닫기" },
     blocks: [{
-      type: "section",
+      type: "rich_text",
       block_id: "translated_preview",
-      text: { type: "plain_text", text: resultText, emoji: false },
+      elements: [{
+        type: "rich_text_section",
+        elements: [{ type: "text", text: resultText }],
+      }],
     }, {
       type: "context",
       elements: [{ type: "mrkdwn", text: contextText }],

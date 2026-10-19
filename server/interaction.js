@@ -99,16 +99,28 @@ export async function handleDraftSubmission(payload, dependencies) {
   if (payload?.type !== "view_submission" ||
       payload.view?.callback_id !== "emoji_translation_draft") return;
 
-  const responseUrl = payload.view.private_metadata;
+  let responseUrl = payload.view.private_metadata;
+  let preservedText;
+  if (responseUrl?.startsWith("{")) {
+    const metadata = JSON.parse(responseUrl);
+    responseUrl = metadata.url;
+    preservedText = metadata.text;
+  }
   if (!responseUrl) throw new Error("Slack draft has no response URL");
   const cachedMappings = emojiValues(dependencies.getCachedMappings());
-  const preview = payload.view.blocks?.find(
+  const previewBlock = payload.view.blocks?.find(
     (block) => block.block_id === "translated_preview",
-  )?.text?.text;
+  );
+  const preview = previewBlock?.text?.text ||
+    (previewBlock?.type === "rich_text"
+      ? richTextToPlain(previewBlock, cachedMappings)
+      : undefined);
   const values = payload.view.state?.values || {};
   const input = values.draft?.translated_text || values.draft_pending?.translated_text;
-  const draft = typeof preview === "string"
-    ? translateSlackEmoji(preview, cachedMappings).output
+  const draft = typeof preservedText === "string"
+    ? preservedText
+    : typeof preview === "string"
+      ? translateSlackEmoji(preview, cachedMappings).output
     : richTextToPlain(input?.rich_text_value, cachedMappings);
   if (!draft.trim()) throw new Error("Slack draft input missing");
   await dependencies.respond(responseUrl, buildResultMessage({ text: draft }));

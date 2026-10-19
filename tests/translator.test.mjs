@@ -49,6 +49,14 @@ test("converts Slack standard aliases including gender and profession sequences"
   });
 });
 
+test("preserves joined gender variants in a mixed emoji sequence", () => {
+  const input = ":saluting_face::runner::man-running::woman-running::headphones::dango:";
+  assert.equal(
+    translateSlackEmoji(input).output,
+    "🫡🏃🏃‍♂️🏃‍♀️🎧🍡",
+  );
+});
+
 test("uses readable labels for unknown Unicode aliases without broken squares", () => {
   assert.deepEqual(translateSlackEmoji(":리자몽_화남: :smiley:"), {
     output: "[리자몽 화남] 😃",
