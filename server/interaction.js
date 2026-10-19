@@ -1,5 +1,5 @@
 import { translateSlackEmoji } from "../dist/translator.js";
-import { buildResultModal } from "./modal.js";
+import { buildResultMessage, buildResultModal } from "./modal.js";
 
 function emojiValues(snapshot) {
   return Object.fromEntries(
@@ -20,6 +20,28 @@ export async function handleShortcut(payload, dependencies) {
 
   const cachedMappings = emojiValues(dependencies.getCachedMappings());
   const initial = translateSlackEmoji(payload.message?.text || "", cachedMappings);
+  if (payload.response_url && dependencies.respond) {
+    const { resolved } = initial.unknown.length
+      ? await resolveUnknown(initial.unknown, dependencies)
+      : { resolved: {} };
+    const finalResult = translateSlackEmoji(payload.message?.text || "", {
+      ...cachedMappings,
+      ...resolved,
+    });
+    try {
+      await dependencies.respond(
+        payload.response_url,
+        buildResultMessage({ text: finalResult.output }),
+      );
+    } catch {
+      await dependencies.openView({
+        trigger_id: payload.trigger_id,
+        view: buildResultModal({ text: finalResult.output }),
+      });
+    }
+    return;
+  }
+
   const opened = await dependencies.openView({
     trigger_id: payload.trigger_id,
     view: buildResultModal({
@@ -30,20 +52,7 @@ export async function handleShortcut(payload, dependencies) {
 
   if (initial.unknown.length === 0) return;
 
-  let resolved = {};
-  let error = "";
-  try {
-    const emojiIndex = await dependencies.listEmoji();
-    const customNames = initial.unknown.filter((name) =>
-      Object.hasOwn(emojiIndex, name),
-    );
-    if (customNames.length > 0) {
-      resolved = await dependencies.resolveCustom(customNames, emojiIndex);
-    }
-  } catch {
-    error = "일부 커스텀 이모지를 분석하지 못해 이름으로 표시했습니다.";
-  }
-
+  const { resolved, error } = await resolveUnknown(initial.unknown, dependencies);
   const finalResult = translateSlackEmoji(payload.message?.text || "", {
     ...cachedMappings,
     ...resolved,
@@ -53,4 +62,21 @@ export async function handleShortcut(payload, dependencies) {
     hash: opened.view.hash,
     view: buildResultModal({ text: finalResult.output, error }),
   });
+}
+
+async function resolveUnknown(unknown, dependencies) {
+  let resolved = {};
+  let error = "";
+  try {
+    const emojiIndex = await dependencies.listEmoji();
+    const customNames = unknown.filter((name) =>
+      Object.hasOwn(emojiIndex, name),
+    );
+    if (customNames.length > 0) {
+      resolved = await dependencies.resolveCustom(customNames, emojiIndex);
+    }
+  } catch {
+    error = "일부 커스텀 이모지를 분석하지 못해 이름으로 표시했습니다.";
+  }
+  return { resolved, error };
 }

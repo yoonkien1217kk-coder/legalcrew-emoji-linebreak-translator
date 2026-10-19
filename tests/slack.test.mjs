@@ -1,7 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { slackApi, verifySlackRequest } from "../server/slack.js";
+import { slackApi, slackResponse, verifySlackRequest } from "../server/slack.js";
+
+test("posts a private result through the shortcut response URL", async () => {
+  const calls = [];
+  await slackResponse("https://hooks.slack.test/private", { response_type: "ephemeral", text: "😃" }, {
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return new Response("ok");
+    },
+  });
+
+  assert.equal(calls[0].url, "https://hooks.slack.test/private");
+  assert.equal(calls[0].options.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].options.body), { response_type: "ephemeral", text: "😃" });
+});
 
 const fixture = {
   rawBody: "payload=%7B%22type%22%3A%22message_action%22%7D",

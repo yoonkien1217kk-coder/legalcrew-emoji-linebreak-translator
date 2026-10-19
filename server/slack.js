@@ -56,3 +56,18 @@ export async function slackApi(
   }
   return result;
 }
+
+export async function slackResponse(
+  responseUrl,
+  body,
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  const response = await fetchImpl(responseUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error(`Slack shortcut response error: ${response.status}`);
+  }
+}

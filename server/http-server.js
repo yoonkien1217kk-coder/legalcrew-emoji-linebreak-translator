@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { createCustomEmojiResolver, createOpenAIAnalyzer } from "./custom-emoji.js";
 import { handleShortcut } from "./interaction.js";
 import { createMappingStore } from "./mapping-store.js";
-import { slackApi, verifySlackRequest } from "./slack.js";
+import { slackApi, slackResponse, verifySlackRequest } from "./slack.js";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
@@ -112,6 +112,7 @@ export function createProductionApp({ fetchImpl = globalThis.fetch } = {}) {
         getCachedMappings: () => store.snapshot(),
         openView: (body) => callSlack("views.open", body),
         updateView: (body) => callSlack("views.update", body),
+        respond: (url, body) => slackResponse(url, body, { fetchImpl }),
         listEmoji: async () => (await callSlack("emoji.list", {})).emoji || {},
         resolveCustom: (names, emojiIndex) =>
           createCustomEmojiResolver({ emojiIndex, store, analyze }).resolve(names),

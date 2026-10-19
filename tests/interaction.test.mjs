@@ -52,6 +52,47 @@ test("opens a safe modal before resolving only unknown aliases", async () => {
   assert.equal(copyResult(updatedView), "기분 😃 🩷💃");
 });
 
+test("sends one private result message when the shortcut supplies a response URL", async () => {
+  const events = [];
+  let response;
+
+  await handleShortcut({ ...shortcut, response_url: "https://hooks.slack.test/private" }, {
+    getCachedMappings: () => ({}),
+    openView: async () => { throw new Error("unexpected modal"); },
+    listEmoji: async () => {
+      events.push("list");
+      return { 커비춤: "https://example.com/kirby.png" };
+    },
+    resolveCustom: async () => {
+      events.push("resolve");
+      return { 커비춤: "🩷💃" };
+    },
+    respond: async (url, message) => {
+      events.push("respond");
+      response = { url, message };
+    },
+  });
+
+  assert.deepEqual(events, ["list", "resolve", "respond"]);
+  assert.equal(response.url, "https://hooks.slack.test/private");
+  assert.equal(response.message.text, "기분 😃 🩷💃");
+  assert.equal(response.message.response_type, "ephemeral");
+});
+
+test("standard emoji results do not require the custom emoji API", async () => {
+  let result;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: ":smiley: :kr:" },
+    response_url: "https://hooks.slack.test/private",
+  }, {
+    getCachedMappings: () => ({}),
+    listEmoji: async () => { throw new Error("unexpected emoji lookup"); },
+    respond: async (_url, message) => { result = message.text; },
+  });
+  assert.equal(result, "😃 🇰🇷");
+});
+
 test("ignores unrelated interactions", async () => {
   let opened = false;
   await handleShortcut(

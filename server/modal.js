@@ -11,6 +11,22 @@ function truncateForSlack(text) {
     .join("");
 }
 
+export function buildResultMessage({ text }) {
+  const resultText = truncateForSlack(text) || "변환할 텍스트가 없습니다.";
+  return {
+    response_type: "ephemeral",
+    replace_original: false,
+    text: resultText,
+    blocks: [{
+      type: "rich_text",
+      elements: [{
+        type: "rich_text_section",
+        elements: [{ type: "text", text: resultText }],
+      }],
+    }],
+  };
+}
+
 export function buildResultModal({ text, pendingNames = [], error = "" }) {
   const resultText = truncateForSlack(text);
   const contextText = pendingNames.length

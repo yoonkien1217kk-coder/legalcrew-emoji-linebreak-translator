@@ -1,7 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildResultModal } from "../server/modal.js";
+import { buildResultMessage, buildResultModal } from "../server/modal.js";
+
+test("builds a private, copyable message containing only the translated result", () => {
+  const result = "안녕하세요 😃\n두 번째 줄 🇰🇷";
+  const message = buildResultMessage({ text: result });
+
+  assert.equal(message.response_type, "ephemeral");
+  assert.equal(message.replace_original, false);
+  assert.equal(message.text, result);
+  assert.deepEqual(message.blocks, [{
+    type: "rich_text",
+    elements: [{
+      type: "rich_text_section",
+      elements: [{ type: "text", text: result }],
+    }],
+  }]);
+});
 
 test("builds one plain result that desktop and mobile users can copy", () => {
   const view = buildResultModal({ text: "안녕하세요 😃\n두 번째 줄" });
