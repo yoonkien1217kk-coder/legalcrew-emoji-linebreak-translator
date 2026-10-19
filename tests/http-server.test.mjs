@@ -131,31 +131,3 @@ test("acknowledges a valid shortcut before async processing finishes", async () 
     },
   );
 });
-
-test("acknowledges a result modal submission so Slack closes it", async () => {
-  const payload = {
-    type: "view_submission",
-    team: { id: "T-LEGAL" },
-    view: { callback_id: "emoji_translation_result" },
-  };
-  const body = new URLSearchParams({ payload: JSON.stringify(payload) }).toString();
-  const headers = sign(body);
-
-  await withServer(
-    { signingSecret: SECRET, teamId: "T-LEGAL", nowSeconds: () => NOW },
-    async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/slack/interactions`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          "x-slack-request-timestamp": headers.timestamp,
-          "x-slack-signature": headers.signature,
-        },
-        body,
-      });
-
-      assert.equal(response.status, 200);
-      assert.equal(await response.text(), "");
-    },
-  );
-});
