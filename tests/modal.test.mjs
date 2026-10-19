@@ -3,20 +3,15 @@ import assert from "node:assert/strict";
 
 import { buildDraftModal, buildResultMessage, buildResultModal } from "../server/modal.js";
 
-test("opens a tall editable draft with a private-post action", () => {
+test("shows a fixed Unicode preview with a private-post action", () => {
   const view = buildDraftModal({ text: "안녕 😃", responseUrl: "https://hooks.slack.test/private" });
-  const input = view.blocks.find((block) => block.type === "input");
+  const preview = view.blocks.find((block) => block.block_id === "translated_preview");
 
   assert.equal(view.callback_id, "emoji_translation_draft");
   assert.equal(view.submit.text, "나에게만 올리기");
   assert.equal(view.private_metadata, "https://hooks.slack.test/private");
-  assert.equal(input.element.type, "rich_text_input");
-  assert.equal(input.element.min_lines, 12);
-  assert.ok(input.element.max_lines >= 12);
-  assert.deepEqual(input.element.initial_value, {
-    type: "rich_text",
-    elements: [{ type: "rich_text_section", elements: [{ type: "text", text: "안녕 😃" }] }],
-  });
+  assert.deepEqual(preview.text, { type: "plain_text", text: "안녕 😃", emoji: false });
+  assert.equal(view.blocks.some((block) => block.type === "input"), false);
 });
 
 test("builds a private, copyable message containing only the translated result", () => {

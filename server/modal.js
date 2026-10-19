@@ -30,8 +30,8 @@ export function buildResultMessage({ text }) {
 export function buildDraftModal({ text, responseUrl, pendingNames = [], error = "" }) {
   const resultText = truncateForSlack(text) || " ";
   const contextText = pendingNames.length
-    ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 초안이 갱신됩니다.`
-    : error || "초안을 고친 뒤 버튼을 누르면 나에게만 결과 메시지가 표시됩니다.";
+    ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 결과가 갱신됩니다.`
+    : error || "결과를 확인하고 버튼을 누르면 나에게만 복사용 메시지가 표시됩니다.";
   return {
     type: "modal",
     callback_id: "emoji_translation_draft",
@@ -40,22 +40,9 @@ export function buildDraftModal({ text, responseUrl, pendingNames = [], error = 
     submit: { type: "plain_text", text: "나에게만 올리기" },
     close: { type: "plain_text", text: "닫기" },
     blocks: [{
-      type: "input",
-      block_id: pendingNames.length ? "draft_pending" : "draft",
-      label: { type: "plain_text", text: "초안 확인·수정" },
-      element: {
-        type: "rich_text_input",
-        action_id: "translated_text",
-        min_lines: 12,
-        max_lines: 24,
-        initial_value: {
-          type: "rich_text",
-          elements: [{
-            type: "rich_text_section",
-            elements: [{ type: "text", text: resultText }],
-          }],
-        },
-      },
+      type: "section",
+      block_id: "translated_preview",
+      text: { type: "plain_text", text: resultText, emoji: false },
     }, {
       type: "context",
       elements: [{ type: "mrkdwn", text: contextText }],

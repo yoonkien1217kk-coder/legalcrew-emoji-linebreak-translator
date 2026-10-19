@@ -101,10 +101,15 @@ export async function handleDraftSubmission(payload, dependencies) {
 
   const responseUrl = payload.view.private_metadata;
   if (!responseUrl) throw new Error("Slack draft has no response URL");
+  const cachedMappings = emojiValues(dependencies.getCachedMappings());
+  const preview = payload.view.blocks?.find(
+    (block) => block.block_id === "translated_preview",
+  )?.text?.text;
   const values = payload.view.state?.values || {};
   const input = values.draft?.translated_text || values.draft_pending?.translated_text;
-  const cachedMappings = emojiValues(dependencies.getCachedMappings());
-  const draft = richTextToPlain(input?.rich_text_value, cachedMappings);
+  const draft = typeof preview === "string"
+    ? translateSlackEmoji(preview, cachedMappings).output
+    : richTextToPlain(input?.rich_text_value, cachedMappings);
   if (!draft.trim()) throw new Error("Slack draft input missing");
   await dependencies.respond(responseUrl, buildResultMessage({ text: draft }));
 }

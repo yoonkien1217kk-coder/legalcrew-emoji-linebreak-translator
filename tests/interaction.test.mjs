@@ -52,7 +52,7 @@ test("opens a safe modal before resolving only unknown aliases", async () => {
   assert.equal(copyResult(updatedView), "기분 😃 🩷💃");
 });
 
-test("opens an editable draft before the private result is posted", async () => {
+test("opens a fixed preview before the private result is posted", async () => {
   const events = [];
   let initialView;
   let updatedView;
@@ -82,7 +82,7 @@ test("opens an editable draft before the private result is posted", async () => 
   assert.deepEqual(events, ["open", "list", "resolve", "update"]);
   assert.equal(initialView.callback_id, "emoji_translation_draft");
   assert.equal(initialView.private_metadata, "https://hooks.slack.test/private");
-  assert.equal(updatedView.blocks[0].element.initial_value.elements[0].elements[0].text, "기분 😃 🩷💃");
+  assert.equal(updatedView.blocks[0].text.text, "기분 😃 🩷💃");
 });
 
 test("standard emoji results do not require the custom emoji API", async () => {
@@ -97,7 +97,28 @@ test("standard emoji results do not require the custom emoji API", async () => {
     openView: async ({ view: draft }) => { view = draft; },
     respond: async () => { throw new Error("unexpected post"); },
   });
-  assert.equal(view.blocks[0].element.initial_value.elements[0].elements[0].text, "😃 🇰🇷");
+  assert.equal(view.blocks[0].text.text, "😃 🇰🇷");
+});
+
+test("posts the fixed preview exactly when the modal is submitted", async () => {
+  let posted;
+  await handleDraftSubmission({
+    type: "view_submission",
+    view: {
+      callback_id: "emoji_translation_draft",
+      private_metadata: "https://hooks.slack.test/private",
+      blocks: [{
+        type: "section",
+        block_id: "translated_preview",
+        text: { type: "plain_text", text: "공지 😃 🇰🇷", emoji: false },
+      }],
+      state: { values: {} },
+    },
+  }, {
+    getCachedMappings: () => ({}),
+    respond: async (_url, message) => { posted = message.text; },
+  });
+  assert.equal(posted, "공지 😃 🇰🇷");
 });
 
 test("posts the edited draft privately after modal submission", async () => {
