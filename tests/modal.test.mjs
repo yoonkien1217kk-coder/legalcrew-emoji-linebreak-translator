@@ -11,10 +11,19 @@ test("builds a multiline copy field with the translated result", () => {
   assert.equal(view.callback_id, "emoji_translation_result");
   assert.deepEqual(view.submit, { type: "plain_text", text: "확인" });
   assert.deepEqual(view.blocks[0].element, {
-    type: "plain_text_input",
+    type: "rich_text_input",
     action_id: "translated_text",
-    multiline: true,
-    initial_value: "안녕하세요 😃\n두 번째 줄",
+    min_lines: 10,
+    max_lines: 20,
+    initial_value: {
+      type: "rich_text",
+      elements: [
+        {
+          type: "rich_text_section",
+          elements: [{ type: "text", text: "안녕하세요 😃\n두 번째 줄" }],
+        },
+      ],
+    },
   });
 });
 
@@ -30,7 +39,7 @@ test("shows pending custom emoji names without exposing message metadata", () =>
 
 test("truncates oversized results at the Slack input limit", () => {
   const view = buildResultModal({ text: "가".repeat(3_100) });
-  const value = view.blocks[0].element.initial_value;
+  const value = view.blocks[0].element.initial_value.elements[0].elements[0].text;
 
   assert.ok(Array.from(value).length <= 3_000);
   assert.match(value, /Slack 표시 한도로 일부 생략\)$/);

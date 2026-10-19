@@ -41,11 +41,14 @@ test("opens a safe modal before resolving only unknown aliases", async () => {
   assert.deepEqual(events, ["open", "list", "resolve", "update"]);
   assert.deepEqual(resolvedNames, ["커비춤"]);
   assert.equal(
-    initialView.blocks[0].element.initial_value,
+    initialView.blocks[0].element.initial_value.elements[0].elements[0].text,
     "기분 😃 [커비춤]",
   );
   assert.match(initialView.blocks[1].elements[0].text, /분석 중/);
-  assert.equal(updatedView.blocks[0].element.initial_value, "기분 😃 🩷💃");
+  assert.equal(
+    updatedView.blocks[0].element.initial_value.elements[0].elements[0].text,
+    "기분 😃 🩷💃",
+  );
 });
 
 test("ignores unrelated interactions", async () => {
@@ -76,6 +79,9 @@ test("keeps safe labels when custom analysis fails", async () => {
     },
   });
 
-  assert.equal(updatedView.blocks[0].element.initial_value, "기분 😃 [커비춤]");
+  assert.equal(
+    updatedView.blocks[0].element.initial_value.elements[0].elements[0].text,
+    "기분 😃 [커비춤]",
+  );
   assert.match(updatedView.blocks[1].elements[0].text, /분석하지 못해 이름으로 표시/);
 });

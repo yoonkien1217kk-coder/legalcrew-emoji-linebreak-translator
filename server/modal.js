@@ -29,10 +29,19 @@ export function buildResultModal({ text, pendingNames = [], error = "" }) {
         label: { type: "plain_text", text: "복사할 결과" },
         optional: true,
         element: {
-          type: "plain_text_input",
+          type: "rich_text_input",
           action_id: "translated_text",
-          multiline: true,
-          initial_value: truncateForSlack(text),
+          min_lines: 10,
+          max_lines: 20,
+          initial_value: {
+            type: "rich_text",
+            elements: [
+              {
+                type: "rich_text_section",
+                elements: [{ type: "text", text: truncateForSlack(text) }],
+              },
+            ],
+          },
         },
       },
       {
