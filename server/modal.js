@@ -14,23 +14,27 @@ function truncateForSlack(text) {
 export function buildResultModal({ text, pendingNames = [], error = "" }) {
   const contextText = pendingNames.length
     ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 결과가 갱신됩니다.`
-    : error || "코드 블록의 복사 기능을 사용해 결과를 그대로 복사하세요.";
+    : error ||
+      "PC는 Ctrl/Cmd+A 후 복사, 모바일은 길게 눌러 전체 선택 후 복사하세요.";
 
   return {
     type: "modal",
     callback_id: "emoji_translation_result",
     title: { type: "plain_text", text: "SNS용 이모지 변환" },
+    submit: { type: "plain_text", text: "확인" },
     close: { type: "plain_text", text: "닫기" },
     blocks: [
       {
-        type: "rich_text",
-        block_id: "translated_text_result",
-        elements: [
-          {
-            type: "rich_text_preformatted",
-            elements: [{ type: "text", text: truncateForSlack(text) }],
-          },
-        ],
+        type: "input",
+        block_id: "translated_text_block",
+        label: { type: "plain_text", text: "복사할 결과" },
+        optional: true,
+        element: {
+          type: "plain_text_input",
+          action_id: "translated_text",
+          multiline: true,
+          initial_value: truncateForSlack(text),
+        },
       },
       {
         type: "context",
