@@ -12,6 +12,7 @@ function truncateForSlack(text) {
 }
 
 export function buildResultModal({ text, pendingNames = [], error = "" }) {
+  const resultText = truncateForSlack(text);
   const contextText = pendingNames.length
     ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 결과가 갱신됩니다.`
     : error ||
@@ -25,15 +26,27 @@ export function buildResultModal({ text, pendingNames = [], error = "" }) {
     close: { type: "plain_text", text: "닫기" },
     blocks: [
       {
+        type: "rich_text",
+        block_id: "desktop_copy_result",
+        elements: [
+          {
+            type: "rich_text_preformatted",
+            elements: [{ type: "text", text: resultText }],
+          },
+        ],
+      },
+      {
         type: "input",
-        block_id: "translated_text_block",
-        label: { type: "plain_text", text: "복사할 결과" },
+        block_id: pendingNames.length
+          ? "translated_text_block_pending"
+          : "translated_text_block",
+        label: { type: "plain_text", text: "모바일 복사용" },
         optional: true,
         element: {
           type: "plain_text_input",
           action_id: "translated_text",
           multiline: true,
-          initial_value: truncateForSlack(text),
+          initial_value: resultText,
         },
       },
       {

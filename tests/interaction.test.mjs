@@ -10,6 +10,15 @@ const shortcut = {
   message: { text: "기분 :smiley: :커비춤:" },
 };
 
+function copyResults(view) {
+  const desktop = view.blocks.find((block) => block.type === "rich_text");
+  const mobile = view.blocks.find((block) => block.type === "input");
+  return {
+    desktop: desktop.elements[0].elements[0].text,
+    mobile: mobile.element.initial_value,
+  };
+}
+
 test("opens a safe modal before resolving only unknown aliases", async () => {
   const events = [];
   const resolvedNames = [];
@@ -40,15 +49,18 @@ test("opens a safe modal before resolving only unknown aliases", async () => {
 
   assert.deepEqual(events, ["open", "list", "resolve", "update"]);
   assert.deepEqual(resolvedNames, ["커비춤"]);
-  assert.equal(
-    initialView.blocks[0].element.initial_value,
-    "기분 😃 [커비춤]",
+  assert.deepEqual(copyResults(initialView), {
+    desktop: "기분 😃 [커비춤]",
+    mobile: "기분 😃 [커비춤]",
+  });
+  assert.match(
+    initialView.blocks.find((block) => block.type === "context").elements[0].text,
+    /분석 중/,
   );
-  assert.match(initialView.blocks[1].elements[0].text, /분석 중/);
-  assert.equal(
-    updatedView.blocks[0].element.initial_value,
-    "기분 😃 🩷💃",
-  );
+  assert.deepEqual(copyResults(updatedView), {
+    desktop: "기분 😃 🩷💃",
+    mobile: "기분 😃 🩷💃",
+  });
 });
 
 test("ignores unrelated interactions", async () => {
@@ -79,9 +91,12 @@ test("keeps safe labels when custom analysis fails", async () => {
     },
   });
 
-  assert.equal(
-    updatedView.blocks[0].element.initial_value,
-    "기분 😃 [커비춤]",
+  assert.deepEqual(copyResults(updatedView), {
+    desktop: "기분 😃 [커비춤]",
+    mobile: "기분 😃 [커비춤]",
+  });
+  assert.match(
+    updatedView.blocks.find((block) => block.type === "context").elements[0].text,
+    /분석하지 못해 이름으로 표시/,
   );
-  assert.match(updatedView.blocks[1].elements[0].text, /분석하지 못해 이름으로 표시/);
 });
