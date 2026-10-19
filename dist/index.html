@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Slack 이모지 단축어를 브라우저에서 바로 보이는 실제 이모지로 바꿔보세요."
+    />
+    <title>모지브릿지 — Slack 이모지를 SNS 이모지로</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <a class="brand" href="./" aria-label="모지브릿지 처음으로">
+          <span class="brand-mark" aria-hidden="true">:)</span>
+          <span>모지브릿지</span>
+        </a>
+        <div class="hero-copy">
+          <p class="eyebrow">SLACK → SOCIAL</p>
+          <h1>깨진 단축어 말고,<br /><em>진짜 이모지</em>로.</h1>
+          <p class="intro">
+            Slack 문구를 붙여넣으면 브라우저에서 바로 보이는 이모지로
+            바꿔드려요.
+          </p>
+        </div>
+        <div class="example" aria-label="변환 예시">
+          <span>:tada:</span>
+          <span class="arrow" aria-hidden="true">→</span>
+          <strong>🎉</strong>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="이모지 변환기">
+        <div class="panel input-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="step">01</span>
+              <h2>Slack 문구 붙여넣기</h2>
+            </div>
+            <button class="text-button" id="clear" type="button">전체 지우기</button>
+          </div>
+          <label class="sr-only" for="source">Slack에서 복사한 문구</label>
+          <textarea
+            id="source"
+            rows="11"
+            placeholder="예) 드디어 출시합니다 :tada:&#10;모두 고생했어요 :clap: :heart:"
+            spellcheck="true"
+            autofocus
+          ></textarea>
+        </div>
+
+        <div class="bridge" aria-hidden="true"><span>→</span></div>
+
+        <div class="panel result-panel">
+          <div class="panel-heading">
+            <div>
+              <span class="step">02</span>
+              <h2>SNS용 결과</h2>
+            </div>
+            <span class="status-dot"></span>
+          </div>
+          <label class="sr-only" for="result">변환된 SNS 문구</label>
+          <textarea
+            id="result"
+            rows="11"
+            readonly
+            placeholder="변환된 문구가 여기에 나타나요."
+          ></textarea>
+          <button class="copy-button" id="copy" type="button" disabled>
+            <span>결과 복사</span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </section>
+
+      <p class="status" id="status" aria-live="polite">
+        문구를 붙여넣으면 바로 변환됩니다.
+      </p>
+
+      <section class="unknowns" id="unknowns" hidden>
+        <div class="unknown-heading">
+          <span aria-hidden="true">✦</span>
+          <div>
+            <h2>처음 보는 커스텀 이모지예요</h2>
+            <p>대신 쓸 이모지를 한 번만 골라주세요. 이 브라우저가 기억합니다.</p>
+          </div>
+        </div>
+        <div id="unknown-list" class="unknown-list"></div>
+      </section>
+
+      <footer>
+        <span class="privacy-icon" aria-hidden="true">●</span>
+        붙여넣은 문구는 서버로 전송되지 않고 이 기기에서만 변환됩니다.
+      </footer>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
