@@ -121,7 +121,9 @@ export async function handleDraftSubmission(payload, dependencies) {
     ? preservedText
     : typeof preview === "string"
       ? translateSlackEmoji(preview, cachedMappings).output
-    : richTextToPlain(input?.rich_text_value, cachedMappings);
+    : typeof input?.value === "string"
+      ? translateSlackEmoji(input.value, cachedMappings).output
+      : richTextToPlain(input?.rich_text_value, cachedMappings);
   if (!draft.trim()) throw new Error("Slack draft input missing");
   await dependencies.respond(responseUrl, buildResultMessage({ text: draft }));
 }

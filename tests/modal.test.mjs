@@ -3,21 +3,24 @@ import assert from "node:assert/strict";
 
 import { buildDraftModal, buildResultMessage, buildResultModal } from "../server/modal.js";
 
-test("shows a fixed Unicode preview with a private-post action", () => {
-  const view = buildDraftModal({ text: "안녕 😃", responseUrl: "https://hooks.slack.test/private" });
-  const preview = view.blocks.find((block) => block.block_id === "translated_preview");
+test("puts joined Unicode emoji in a plain text draft while keeping private post", () => {
+  const text = "안녕 🏃‍♂️ 👨‍👩‍👧‍👦 🇰🇷";
+  const view = buildDraftModal({ text, responseUrl: "https://hooks.slack.test/private" });
+  const draft = view.blocks.find((block) => block.block_id === "draft");
 
   assert.equal(view.callback_id, "emoji_translation_draft");
   assert.equal(view.submit.text, "나에게만 올리기");
   assert.deepEqual(JSON.parse(view.private_metadata), {
     url: "https://hooks.slack.test/private",
-    text: "안녕 😃",
+    text,
   });
-  assert.deepEqual(preview.elements, [{
-    type: "rich_text_section",
-    elements: [{ type: "text", text: "안녕 😃" }],
-  }]);
-  assert.equal(view.blocks.some((block) => block.type === "input"), false);
+  assert.deepEqual(draft.element, {
+    type: "plain_text_input",
+    action_id: "translated_text",
+    multiline: true,
+    initial_value: text,
+  });
+  assert.equal(view.blocks.some((block) => block.type === "rich_text"), false);
 });
 
 test("keeps modal metadata within Slack's limit for long results", () => {
@@ -26,7 +29,7 @@ test("keeps modal metadata within Slack's limit for long results", () => {
     responseUrl: "https://hooks.slack.test/private",
   });
   assert.ok(view.private_metadata.length <= 3_000);
-  assert.ok(view.blocks[0].elements[0].elements[0].text.length <= 3_000);
+  assert.ok(view.blocks[0].element.initial_value.length <= 3_000);
 });
 
 test("builds a private, copyable message containing only the translated result", () => {

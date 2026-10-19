@@ -53,7 +53,7 @@ test("opens a safe modal before resolving only unknown aliases", async () => {
   assert.equal(copyResult(updatedView), "기분 😃 🩷💃");
 });
 
-test("opens a fixed preview before the private result is posted", async () => {
+test("opens a plain text draft before the private result is posted", async () => {
   const events = [];
   let initialView;
   let updatedView;
@@ -83,7 +83,7 @@ test("opens a fixed preview before the private result is posted", async () => {
   assert.deepEqual(events, ["open", "list", "resolve", "update"]);
   assert.equal(initialView.callback_id, "emoji_translation_draft");
   assert.equal(JSON.parse(initialView.private_metadata).url, "https://hooks.slack.test/private");
-  assert.equal(updatedView.blocks[0].elements[0].elements[0].text, "기분 😃 🩷💃");
+  assert.equal(updatedView.blocks[0].element.initial_value, "기분 😃 🩷💃");
 });
 
 test("standard emoji results do not require the custom emoji API", async () => {
@@ -98,10 +98,10 @@ test("standard emoji results do not require the custom emoji API", async () => {
     openView: async ({ view: draft }) => { view = draft; },
     respond: async () => { throw new Error("unexpected post"); },
   });
-  assert.equal(view.blocks[0].elements[0].elements[0].text, "😃 🇰🇷");
+  assert.equal(view.blocks[0].element.initial_value, "😃 🇰🇷");
 });
 
-test("posts original joined emoji even if Slack changes the preview", async () => {
+test("posts original joined emoji even if Slack changes the plain text draft", async () => {
   const original = "테스트를 하는 나 🫡🏃🏃‍♂️🏃‍♀️🎧🍡";
   const modal = buildDraftModal({
     text: original,
@@ -112,20 +112,38 @@ test("posts original joined emoji even if Slack changes the preview", async () =
     type: "view_submission",
     view: {
       ...modal,
-      blocks: [{
-        type: "rich_text",
-        block_id: "translated_preview",
-        elements: [{
-          type: "rich_text_section",
-          elements: [{ type: "text", text: "테스트를 하는 나 🫡🏃🏃♂️🏃♀️🎧🍡" }],
-        }],
-      }],
+      state: { values: { draft: { translated_text: {
+        type: "plain_text_input",
+        value: "테스트를 하는 나 🫡🏃🏃♂️🏃♀️🎧🍡",
+      } } } },
     },
   }, {
     getCachedMappings: () => ({}),
     respond: async (_url, message) => { posted = message.text; },
   });
   assert.equal(posted, original);
+});
+
+test("uses a plain text draft when long metadata cannot hold the original", async () => {
+  const modal = buildDraftModal({
+    text: "가".repeat(3_100),
+    responseUrl: "https://hooks.slack.test/private",
+  });
+  let posted;
+  await handleDraftSubmission({
+    type: "view_submission",
+    view: {
+      ...modal,
+      state: { values: { draft: { translated_text: {
+        type: "plain_text_input",
+        value: modal.blocks[0].element.initial_value,
+      } } } },
+    },
+  }, {
+    getCachedMappings: () => ({}),
+    respond: async (_url, message) => { posted = message.text; },
+  });
+  assert.equal(posted, modal.blocks[0].element.initial_value);
 });
 
 test("posts the fixed preview exactly when the modal is submitted", async () => {
