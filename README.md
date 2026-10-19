@@ -52,7 +52,7 @@ curl -fsS http://127.0.0.1:3000/health
 
 1. Node 서버를 공개 HTTPS 호스트에 배포합니다. 최초 `SLACK_SIGNING_SECRET`에는 임시 비밀 문자열을 넣어 서버를 먼저 기동할 수 있습니다.
 2. [Slack 앱 관리 화면](https://api.slack.com/apps)에서 **Create New App → From an app manifest**를 선택합니다.
-3. `slack-app-manifest.yaml`의 `YOUR_PUBLIC_HOST`를 실제 호스트로 바꾸고 LegalCrew 워크스페이스에 manifest를 가져옵니다.
+3. `slack-app-manifest.yaml`을 LegalCrew 워크스페이스에 가져옵니다. 현재 interaction URL은 `https://web-production-d545e.up.railway.app/slack/interactions`입니다.
 4. **Basic Information → App Credentials**의 실제 Signing Secret을 배포 환경에 등록하고 서버를 재시작합니다.
 5. `OPENAI_API_KEY`와 영구 `DATA_FILE` 경로를 등록합니다.
 6. **Install App → Install to Workspace**를 누릅니다. 관리자 승인이 필요한 워크스페이스라면 이 단계에서 `commands`, `emoji:read` 승인 요청이 전송됩니다.
