@@ -107,10 +107,10 @@ test("posts the edited draft privately after modal submission", async () => {
     view: {
       callback_id: "emoji_translation_draft",
       private_metadata: "https://hooks.slack.test/private",
-      state: { values: { draft: { translated_text: { value: {
+      state: { values: { draft: { translated_text: { rich_text_value: {
         type: "rich_text",
         elements: [{ type: "rich_text_section", elements: [
-          { type: "text", text: "수정 😃 " },
+          { type: "text", text: "수정 😃 :smile: " },
           { type: "emoji", name: "kr" },
         ] }],
       } } } } },
@@ -122,7 +122,23 @@ test("posts the edited draft privately after modal submission", async () => {
 
   assert.equal(response.url, "https://hooks.slack.test/private");
   assert.equal(response.message.response_type, "ephemeral");
-  assert.equal(response.message.text, "수정 😃 🇰🇷");
+  assert.equal(response.message.text, "수정 😃 :smile: 🇰🇷");
+});
+
+test("does not post an empty result when Slack omits the edited draft", async () => {
+  let posted = false;
+  await assert.rejects(handleDraftSubmission({
+    type: "view_submission",
+    view: {
+      callback_id: "emoji_translation_draft",
+      private_metadata: "https://hooks.slack.test/private",
+      state: { values: { draft: { translated_text: { type: "rich_text_input" } } } },
+    },
+  }, {
+    getCachedMappings: () => ({}),
+    respond: async () => { posted = true; },
+  }), /draft input missing/);
+  assert.equal(posted, false);
 });
 
 test("ignores unrelated interactions", async () => {

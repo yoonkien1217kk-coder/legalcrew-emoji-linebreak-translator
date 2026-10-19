@@ -70,14 +70,25 @@ export async function handleShortcut(payload, dependencies) {
   });
 }
 
-function richTextToPlain(value) {
-  if (!value || !Array.isArray(value.elements)) return "";
+function richTextToPlain(value, mappings) {
+  if (!value || !Array.isArray(value.elements)) {
+    throw new Error("Slack draft input missing");
+  }
   const elementText = (element) => {
     if (element.type === "text") return element.text || "";
-    if (element.type === "emoji") return `:${element.name}:`;
+    if (element.type === "emoji") {
+      if (/^[0-9a-f]{2,6}(?:-[0-9a-f]{2,6})*$/i.test(element.unicode || "")) {
+        try {
+          return String.fromCodePoint(...element.unicode.split("-").map((part) => parseInt(part, 16)));
+        } catch { /* Fall back to the emoji name. */ }
+      }
+      return translateSlackEmoji(`:${element.name}:`, mappings).output;
+    }
     if (element.type === "link") return element.text || element.url || "";
     if (Array.isArray(element.elements)) {
-      return element.elements.map(elementText).join("");
+      return element.elements.map(elementText).join(
+        element.type === "rich_text_list" ? "\n" : "",
+      );
     }
     return "";
   };
@@ -92,14 +103,10 @@ export async function handleDraftSubmission(payload, dependencies) {
   if (!responseUrl) throw new Error("Slack draft has no response URL");
   const values = payload.view.state?.values || {};
   const input = values.draft?.translated_text || values.draft_pending?.translated_text;
-  const draft = richTextToPlain(input?.value);
   const cachedMappings = emojiValues(dependencies.getCachedMappings());
-  const initial = translateSlackEmoji(draft, cachedMappings);
-  const { resolved } = initial.unknown.length
-    ? await resolveUnknown(initial.unknown, dependencies)
-    : { resolved: {} };
-  const finalResult = translateSlackEmoji(draft, { ...cachedMappings, ...resolved });
-  await dependencies.respond(responseUrl, buildResultMessage({ text: finalResult.output }));
+  const draft = richTextToPlain(input?.rich_text_value, cachedMappings);
+  if (!draft.trim()) throw new Error("Slack draft input missing");
+  await dependencies.respond(responseUrl, buildResultMessage({ text: draft }));
 }
 
 async function resolveUnknown(unknown, dependencies) {
