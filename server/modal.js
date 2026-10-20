@@ -27,12 +27,25 @@ export function buildResultMessage({ text }) {
   };
 }
 
-export function buildDraftModal({ text, responseUrl, pendingNames = [], error = "" }) {
+export function buildStatusModal(message) {
+  return {
+    type: "modal",
+    callback_id: "emoji_translation_status",
+    title: { type: "plain_text", text: "SNS용 이모지 변환" },
+    close: { type: "plain_text", text: "닫기" },
+    blocks: [{
+      type: "section",
+      text: { type: "plain_text", text: message },
+    }],
+  };
+}
+
+export function buildDraftModal({ text, responseUrl, pendingNames = [], labeledNames = [], error = "" }) {
   const resultText = truncateForSlack(text) || " ";
   const metadataWithText = JSON.stringify({ url: responseUrl, text: resultText });
   const contextText = pendingNames.length
-    ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 결과가 갱신됩니다.`
-    : error || "PC는 Ctrl/Cmd+A 후 복사, 모바일은 길게 눌러 전체 선택 후 복사하세요.";
+    ? `커스텀 이모지 ${pendingNames.length}개를 확인 중입니다. 결과가 곧 갱신됩니다.`
+    : `${error || (labeledNames.length ? `커스텀 이모지 ${labeledNames.length}개는 이름으로 표시했습니다. ` : "")}PC는 Ctrl/Cmd+A 후 복사, 모바일은 길게 눌러 전체 선택 후 복사하세요.`;
   return {
     type: "modal",
     callback_id: "emoji_translation_draft",
@@ -60,12 +73,11 @@ export function buildDraftModal({ text, responseUrl, pendingNames = [], error = 
   };
 }
 
-export function buildResultModal({ text, pendingNames = [], error = "" }) {
+export function buildResultModal({ text, pendingNames = [], labeledNames = [], error = "" }) {
   const resultText = truncateForSlack(text);
   const contextText = pendingNames.length
-    ? `⏳ 커스텀 이모지 ${pendingNames.length}개 분석 중입니다. 잠시 후 결과가 갱신됩니다.`
-    : error ||
-      "PC는 Ctrl/Cmd+A 후 복사, 모바일은 길게 눌러 전체 선택 후 복사하세요.";
+    ? `커스텀 이모지 ${pendingNames.length}개를 확인 중입니다. 결과가 곧 갱신됩니다.`
+    : `${error || (labeledNames.length ? `커스텀 이모지 ${labeledNames.length}개는 이름으로 표시했습니다. ` : "")}PC는 Ctrl/Cmd+A 후 복사, 모바일은 길게 눌러 전체 선택 후 복사하세요.`;
 
   return {
     type: "modal",

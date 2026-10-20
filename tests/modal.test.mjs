@@ -75,7 +75,7 @@ test("shows pending custom emoji names without exposing message metadata", () =>
   const context = pendingView.blocks.find((block) => block.type === "context");
   const pendingInput = pendingView.blocks.find((block) => block.type === "input");
   const finalInput = finalView.blocks.find((block) => block.type === "input");
-  assert.match(context.elements[0].text, /커스텀 이모지 2개 분석 중/);
+  assert.match(context.elements[0].text, /커스텀 이모지 2개를 확인 중/);
   assert.notEqual(pendingInput.block_id, finalInput.block_id);
 });
 

@@ -13,9 +13,10 @@ Slack 문구 속 `:tada:` 같은 단축어를 브라우저에서 표시되는 �
 
 ## LegalCrew Slack 앱
 
-채널 메시지의 `⋯` 메뉴에서 `SNS용 이모지 변환`을 선택하면 Slack 모달에서 복사용 결과가 열립니다. 기본 이모지는 기존 사전으로 변환하고, 처음 보는 커스텀 이모지는 이름과 이미지를 OpenAI 비전으로 분석해 최대 3개의 유니코드 이모지로 바꿉니다. 분석에 실패하면 `[이름]`으로 표시하며 `□`나 `�`를 남기지 않습니다.
+채널 메시지의 `⋯` 메뉴에서 `SNS용 이모지 변환`을 선택하면 Slack 모달에서 복사용 결과가 열립니다. 기본 이모지는 기존 사전으로 변환합니다. 사전에 없는 이름 중 워크스페이스의 커스텀 이모지로 확인된 것만 `[읽기 쉬운 이름]`으로 표시하며, `□`나 `�`를 남기지 않습니다. 커스텀 목록에 없는 미지원 단축어는 원형을 유지합니다.
 
-Slack 메시지 원문과 사용자 정보는 OpenAI에 보내지 않습니다. 커스텀 이모지 이름과 이미지만 처음 분석할 때 전송하고, 저장 파일에는 이름·유니코드 결과·신뢰도만 보관합니다.
+커스텀 이모지 이미지를 다운로드하거나 AI에 보내지 않습니다. 이 Slack 흐름에서 OpenAI API는 호출하지 않으므로 AI 사용료가 발생하지 않습니다.
+커스텀 목록 조회에 실패하면 기본 이모지를 커스텀으로 오인하지 않도록 복사 가능한 결과 대신 재시도 안내를 표시합니다.
 
 ### 로컬 실행
 
@@ -43,10 +44,9 @@ curl -fsS http://127.0.0.1:3000/health
 - `SLACK_SIGNING_SECRET`: Slack App Credentials의 Signing Secret. 서버 시작에 필요합니다.
 - `SLACK_BOT_TOKEN`: 설치 승인 후 발급되는 `xoxb-` 토큰. 승인 전에는 비워둘 수 있습니다.
 - `SLACK_TEAM_ID`: LegalCrew workspace ID. 설정하면 다른 워크스페이스 요청을 거부합니다.
-- `OPENAI_API_KEY`: 처음 보는 커스텀 이모지 분석에 필요합니다.
-- `OPENAI_MODEL`: 기본값 `gpt-6-luna`.
-- `DATA_FILE`: 분석 결과 JSON 경로. 운영에서는 영구 볼륨 경로를 사용합니다.
 - `PORT`: 기본값 `3000`.
+
+기존 배포 환경에 `OPENAI_API_KEY`, `OPENAI_MODEL`, `DATA_FILE`이 남아 있어도 현재 Slack 처리 경로에서는 사용하지 않습니다.
 
 ### 배포 및 관리자 승인 순서
 
@@ -54,10 +54,9 @@ curl -fsS http://127.0.0.1:3000/health
 2. [Slack 앱 관리 화면](https://api.slack.com/apps)에서 **Create New App → From an app manifest**를 선택합니다.
 3. `slack-app-manifest.yaml`을 LegalCrew 워크스페이스에 가져옵니다. 현재 interaction URL은 `https://web-production-d545e.up.railway.app/slack/interactions`입니다.
 4. **Basic Information → App Credentials**의 실제 Signing Secret을 배포 환경에 등록하고 서버를 재시작합니다.
-5. `OPENAI_API_KEY`와 영구 `DATA_FILE` 경로를 등록합니다.
-6. **Install App → Install to Workspace**를 누릅니다. 관리자 승인이 필요한 워크스페이스라면 이 단계에서 `commands`, `emoji:read` 승인 요청이 전송됩니다.
-7. 승인 후 표시되는 Bot User OAuth Token을 `SLACK_BOT_TOKEN`에 등록하고 서버를 재시작합니다.
-8. LegalCrew 채널의 메시지 `⋯` 메뉴에서 `SNS용 이모지 변환`을 실행해 모달과 복사를 확인합니다.
+5. **Install App → Install to Workspace**를 누릅니다. 관리자 승인이 필요한 워크스페이스라면 이 단계에서 `commands`, `emoji:read` 승인 요청이 전송됩니다.
+6. 승인 후 표시되는 Bot User OAuth Token을 `SLACK_BOT_TOKEN`에 등록하고 서버를 재시작합니다.
+7. LegalCrew 채널의 메시지 `⋯` 메뉴에서 `SNS용 이모지 변환`을 실행해 기본 이모지·커스텀 이름 표시·복사를 확인합니다.
 
 앱은 `chat:write`, 채널 기록, 사용자 프로필 권한을 요청하지 않으며 채널에 메시지를 게시하지 않습니다.
 

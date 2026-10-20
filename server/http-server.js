@@ -1,9 +1,7 @@
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 
-import { createCustomEmojiResolver, createOpenAIAnalyzer } from "./custom-emoji.js";
 import { handleDraftSubmission, handleShortcut } from "./interaction.js";
-import { createMappingStore } from "./mapping-store.js";
 import { slackApi, slackResponse, verifySlackRequest } from "./slack.js";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -92,14 +90,6 @@ function requiredEnvironment(name) {
 export function createProductionApp({ fetchImpl = globalThis.fetch } = {}) {
   const signingSecret = requiredEnvironment("SLACK_SIGNING_SECRET");
   const token = process.env.SLACK_BOT_TOKEN || "";
-  const store = createMappingStore(
-    process.env.DATA_FILE || "./data/custom-emoji-map.json",
-  );
-  const analyze = createOpenAIAnalyzer({
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.OPENAI_MODEL || "gpt-6-luna",
-    fetchImpl,
-  });
 
   const callSlack = (method, body) =>
     slackApi(method, body, { token, fetchImpl });
@@ -109,13 +99,11 @@ export function createProductionApp({ fetchImpl = globalThis.fetch } = {}) {
     teamId: process.env.SLACK_TEAM_ID || "",
     handleInteraction: (payload) => {
       const dependencies = {
-        getCachedMappings: () => store.snapshot(),
+        getCachedMappings: () => ({}),
         openView: (body) => callSlack("views.open", body),
         updateView: (body) => callSlack("views.update", body),
         respond: (url, body) => slackResponse(url, body, { fetchImpl }),
         listEmoji: async () => (await callSlack("emoji.list", {})).emoji || {},
-        resolveCustom: (names, emojiIndex) =>
-          createCustomEmojiResolver({ emojiIndex, store, analyze }).resolve(names),
       };
       return payload?.type === "view_submission"
         ? handleDraftSubmission(payload, dependencies)

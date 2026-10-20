@@ -1,5 +1,5 @@
-import { translateSlackEmoji } from "../dist/translator.js";
-import { buildDraftModal, buildResultMessage, buildResultModal } from "./modal.js";
+import { safeAliasLabel, translateSlackEmoji } from "../dist/translator.js";
+import { buildDraftModal, buildResultMessage, buildResultModal, buildStatusModal } from "./modal.js";
 
 function emojiValues(snapshot) {
   return Object.fromEntries(
@@ -18,55 +18,36 @@ export async function handleShortcut(payload, dependencies) {
     return;
   }
 
-  const cachedMappings = emojiValues(dependencies.getCachedMappings());
-  const initial = translateSlackEmoji(payload.message?.text || "", cachedMappings);
-  if (payload.response_url && dependencies.respond) {
-    const opened = await dependencies.openView({
-      trigger_id: payload.trigger_id,
-      view: buildDraftModal({
-        text: initial.output,
-        responseUrl: payload.response_url,
-        pendingNames: initial.unknown,
-      }),
-    });
-    if (initial.unknown.length === 0) return;
-
-    const { resolved, error } = await resolveUnknown(initial.unknown, dependencies);
-    const finalResult = translateSlackEmoji(payload.message?.text || "", {
-      ...cachedMappings,
-      ...resolved,
-    });
-    await dependencies.updateView({
-      view_id: opened.view.id,
-      hash: opened.view.hash,
-      view: buildDraftModal({
-        text: finalResult.output,
-        responseUrl: payload.response_url,
-        error,
-      }),
-    });
-    return;
-  }
-
+  const source = payload.message?.text || "";
+  const initial = translateSlackEmoji(source);
+  const draft = Boolean(payload.response_url && dependencies.respond);
+  const buildView = (options) => draft
+    ? buildDraftModal({ ...options, responseUrl: payload.response_url })
+    : buildResultModal(options);
   const opened = await dependencies.openView({
     trigger_id: payload.trigger_id,
-    view: buildResultModal({
-      text: initial.output,
-      pendingNames: initial.unknown,
-    }),
+    view: initial.unknown.length
+      ? buildStatusModal("미확인 이모지 단축어를 확인 중입니다. 잠시만 기다려 주세요.")
+      : buildView({ text: initial.output }),
   });
-
   if (initial.unknown.length === 0) return;
 
-  const { resolved, error } = await resolveUnknown(initial.unknown, dependencies);
-  const finalResult = translateSlackEmoji(payload.message?.text || "", {
-    ...cachedMappings,
-    ...resolved,
-  });
+  let view;
+  try {
+    const emojiIndex = await dependencies.listEmoji();
+    const labeledNames = initial.unknown.filter((name) => Object.hasOwn(emojiIndex, name));
+    const replacements = Object.fromEntries(
+      labeledNames.map((name) => [name, safeAliasLabel(name)]),
+    );
+    const result = translateSlackEmoji(source, replacements, { preserveUnknown: true });
+    view = buildView({ text: result.output, labeledNames });
+  } catch {
+    view = buildStatusModal("커스텀 이모지 목록을 확인하지 못해 변환 결과를 만들지 않았습니다. 잠시 후 다시 실행해 주세요.");
+  }
   await dependencies.updateView({
     view_id: opened.view.id,
     hash: opened.view.hash,
-    view: buildResultModal({ text: finalResult.output, error }),
+    view,
   });
 }
 
@@ -82,7 +63,7 @@ function richTextToPlain(value, mappings) {
           return String.fromCodePoint(...element.unicode.split("-").map((part) => parseInt(part, 16)));
         } catch { /* Fall back to the emoji name. */ }
       }
-      return translateSlackEmoji(`:${element.name}:`, mappings).output;
+      return translateSlackEmoji(`:${element.name}:`, mappings, { preserveUnknown: true }).output;
     }
     if (element.type === "link") return element.text || element.url || "";
     if (Array.isArray(element.elements)) {
@@ -120,27 +101,10 @@ export async function handleDraftSubmission(payload, dependencies) {
   const draft = typeof preservedText === "string"
     ? preservedText
     : typeof preview === "string"
-      ? translateSlackEmoji(preview, cachedMappings).output
+      ? translateSlackEmoji(preview, cachedMappings, { preserveUnknown: true }).output
     : typeof input?.value === "string"
-      ? translateSlackEmoji(input.value, cachedMappings).output
+      ? translateSlackEmoji(input.value, cachedMappings, { preserveUnknown: true }).output
       : richTextToPlain(input?.rich_text_value, cachedMappings);
   if (!draft.trim()) throw new Error("Slack draft input missing");
   await dependencies.respond(responseUrl, buildResultMessage({ text: draft }));
-}
-
-async function resolveUnknown(unknown, dependencies) {
-  let resolved = {};
-  let error = "";
-  try {
-    const emojiIndex = await dependencies.listEmoji();
-    const customNames = unknown.filter((name) =>
-      Object.hasOwn(emojiIndex, name),
-    );
-    if (customNames.length > 0) {
-      resolved = await dependencies.resolveCustom(customNames, emojiIndex);
-    }
-  } catch {
-    error = "일부 커스텀 이모지를 분석하지 못해 이름으로 표시했습니다.";
-  }
-  return { resolved, error };
 }

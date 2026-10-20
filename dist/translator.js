@@ -5,17 +5,17 @@ const STORAGE_KEY = "slack-sns-emoji-map-v1";
 const TRAILING_ZWJ_SKIN_TONE =
   /(\p{Emoji_Modifier_Base})(\uFE0F?)((?:\u200D\p{Extended_Pictographic}\uFE0F?)+)([\u{1F3FB}-\u{1F3FF}])/gu;
 
-export function translateSlackEmoji(input, customMap = {}) {
+export function translateSlackEmoji(input, customMap = {}, { preserveUnknown = false } = {}) {
   const unknown = new Set();
   let convertedCount = 0;
 
-  const replaced = input.replace(TOKEN, (_, rawName) => {
+  const replaced = input.replace(TOKEN, (token, rawName) => {
     const name = rawName.toLowerCase();
     const emoji = customMap[name] || EMOJI_MAP[name];
 
     if (!emoji) {
       unknown.add(name);
-      return safeAliasLabel(name);
+      return preserveUnknown ? token : safeAliasLabel(name);
     }
 
     convertedCount += 1;
