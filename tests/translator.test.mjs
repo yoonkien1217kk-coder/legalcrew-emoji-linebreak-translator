@@ -14,6 +14,21 @@ test("converts aliases and preserves whitespace", () => {
   });
 });
 
+test("keeps blank lines in social posts while translating Slack emoji", () => {
+  assert.deepEqual(translateSlackEmoji("첫줄 :smile:\n\n둘째 줄\n\n\n끝"), {
+    output: "첫줄 😄\n\u200B\n둘째 줄\n\u200B\n\u200B\n끝",
+    convertedCount: 1,
+    unknown: [],
+  });
+});
+
+test("keeps consecutive spaces without changing single spaces", () => {
+  assert.equal(
+    translateSlackEmoji("연속   공백\n일반 공백").output,
+    "연속 \u200B \u200B 공백\n일반 공백",
+  );
+});
+
 test("applies custom mappings to repeated aliases", () => {
   assert.deepEqual(
     translateSlackEmoji(":party_parrot: :party_parrot:", {

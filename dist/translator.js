@@ -24,7 +24,10 @@ export function translateSlackEmoji(input, customMap = {}, { preserveUnknown = f
 
   const output = replaced
     .replace(TRAILING_ZWJ_SKIN_TONE, "$1$4$2$3")
-    .replace(/[□�]/gu, "[표시할 수 없는 이모지]");
+    .replace(/[□�]/gu, "[표시할 수 없는 이모지]")
+    .replace(/\r\n?/g, "\n")
+    .replace(/ (?= )/g, " \u200B")
+    .replace(/(^|\n)(?=\n)/g, "$1\u200B");
 
   return { output, convertedCount, unknown: [...unknown] };
 }

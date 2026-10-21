@@ -63,6 +63,27 @@ test("sends JSON to Slack and returns its successful payload", async () => {
   });
 });
 
+test("fetches user and channel names with query parameters", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify({ ok: true }));
+  };
+
+  await slackApi("users.info", { user: "U123" }, { token: "xoxb-test", fetchImpl });
+  await slackApi("conversations.info", { channel: "C123" }, { token: "xoxb-test", fetchImpl });
+
+  assert.deepEqual(calls.map(({ url, options }) => ({
+    url,
+    method: options.method,
+    body: options.body,
+    authorization: options.headers.authorization,
+  })), [
+    { url: "https://slack.com/api/users.info?user=U123", method: "GET", body: undefined, authorization: "Bearer xoxb-test" },
+    { url: "https://slack.com/api/conversations.info?channel=C123", method: "GET", body: undefined, authorization: "Bearer xoxb-test" },
+  ]);
+});
+
 test("reports the Slack method and safe validation details", async () => {
   const fetchImpl = async () =>
     new Response(

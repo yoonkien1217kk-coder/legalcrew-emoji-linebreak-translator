@@ -1,26 +1,48 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildDraftModal, buildResultMessage, buildResultModal } from "../server/modal.js";
+import { buildDraftModal, buildResultMessage, buildResultModal, buildStatusModal } from "../server/modal.js";
 
-test("puts joined Unicode emoji in a plain text draft while keeping private post", () => {
+test("uses the emoji and line-break feature name in every modal", () => {
+  const views = [
+    buildStatusModal("처리 중"),
+    buildDraftModal({ text: "안녕", responseUrl: "https://hooks.slack.test/private" }),
+    buildResultModal({ text: "안녕" }),
+  ];
+  assert.deepEqual(views.map((view) => view.title.text), [
+    "이모지/줄바꿈 변환",
+    "이모지/줄바꿈 변환",
+    "이모지/줄바꿈 변환",
+  ]);
+});
+
+test("shows joined Unicode emoji in a fixed code block while keeping private post", () => {
   const text = "안녕 🏃‍♂️ 👨‍👩‍👧‍👦 🇰🇷";
   const view = buildDraftModal({ text, responseUrl: "https://hooks.slack.test/private" });
-  const draft = view.blocks.find((block) => block.block_id === "draft");
+  const preview = view.blocks.find((block) => block.block_id === "translated_preview");
 
   assert.equal(view.callback_id, "emoji_translation_draft");
-  assert.equal(view.submit.text, "나에게만 올리기");
+  assert.equal(view.submit.text, "복사용 메시지 받기");
   assert.deepEqual(JSON.parse(view.private_metadata), {
     url: "https://hooks.slack.test/private",
     text,
   });
-  assert.deepEqual(draft.element, {
-    type: "plain_text_input",
-    action_id: "translated_text",
-    multiline: true,
-    initial_value: text,
+  assert.deepEqual(preview.elements, [{
+    type: "rich_text_preformatted",
+    elements: [{ type: "text", text }],
+  }]);
+  assert.equal(view.blocks.some((block) => block.type === "input"), false);
+});
+
+test("explains how mobile users copy their private result", () => {
+  const view = buildDraftModal({
+    text: "안녕 😃",
+    responseUrl: "https://hooks.slack.test/private",
   });
-  assert.equal(view.blocks.some((block) => block.type === "rich_text"), false);
+  const context = view.blocks.find((block) => block.type === "context");
+
+  assert.equal(view.submit.text, "복사용 메시지 받기");
+  assert.match(context.elements[0].text, /모바일.*복사용 메시지 받기.*본인에게만.*복사/);
 });
 
 test("keeps modal metadata within Slack's limit for long results", () => {
@@ -29,7 +51,7 @@ test("keeps modal metadata within Slack's limit for long results", () => {
     responseUrl: "https://hooks.slack.test/private",
   });
   assert.ok(view.private_metadata.length <= 3_000);
-  assert.ok(view.blocks[0].element.initial_value.length <= 3_000);
+  assert.ok(view.blocks[0].elements[0].elements[0].text.length <= 3_000);
 });
 
 test("builds a private, copyable message containing only the translated result", () => {
@@ -48,21 +70,19 @@ test("builds a private, copyable message containing only the translated result",
   }]);
 });
 
-test("builds one plain result that desktop and mobile users can copy", () => {
+test("builds a fixed code block for the desktop copy control", () => {
   const view = buildResultModal({ text: "안녕하세요 😃\n두 번째 줄" });
-  const result = view.blocks.find((block) => block.type === "input");
+  const result = view.blocks.find((block) => block.type === "rich_text");
 
   assert.equal(view.type, "modal");
-  assert.equal(view.title.text, "SNS용 이모지 변환");
+  assert.equal(view.title.text, "이모지/줄바꿈 변환");
   assert.equal(view.callback_id, "emoji_translation_result");
-  assert.deepEqual(view.submit, { type: "plain_text", text: "확인" });
-  assert.equal(view.blocks.some((block) => block.type === "rich_text"), false);
-  assert.deepEqual(result.element, {
-    type: "plain_text_input",
-    action_id: "translated_text",
-    multiline: true,
-    initial_value: "안녕하세요 😃\n두 번째 줄",
-  });
+  assert.equal(view.submit, undefined);
+  assert.equal(view.blocks.some((block) => block.type === "input"), false);
+  assert.deepEqual(result.elements, [{
+    type: "rich_text_preformatted",
+    elements: [{ type: "text", text: "안녕하세요 😃\n두 번째 줄" }],
+  }]);
 });
 
 test("shows pending custom emoji names without exposing message metadata", () => {
@@ -73,16 +93,16 @@ test("shows pending custom emoji names without exposing message metadata", () =>
   const finalView = buildResultModal({ text: "🕺" });
 
   const context = pendingView.blocks.find((block) => block.type === "context");
-  const pendingInput = pendingView.blocks.find((block) => block.type === "input");
-  const finalInput = finalView.blocks.find((block) => block.type === "input");
+  const pendingResult = pendingView.blocks.find((block) => block.type === "rich_text");
+  const finalResult = finalView.blocks.find((block) => block.type === "rich_text");
   assert.match(context.elements[0].text, /커스텀 이모지 2개를 확인 중/);
-  assert.notEqual(pendingInput.block_id, finalInput.block_id);
+  assert.notEqual(pendingResult.block_id, finalResult.block_id);
 });
 
 test("truncates oversized results at the Slack input limit", () => {
   const view = buildResultModal({ text: "가".repeat(3_100) });
-  const result = view.blocks.find((block) => block.type === "input");
-  const value = result.element.initial_value;
+  const result = view.blocks.find((block) => block.type === "rich_text");
+  const value = result.elements[0].elements[0].text;
 
   assert.ok(Array.from(value).length <= 3_000);
   assert.match(value, /Slack 표시 한도로 일부 생략\)$/);

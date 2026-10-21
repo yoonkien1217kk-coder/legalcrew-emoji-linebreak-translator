@@ -37,14 +37,18 @@ export async function slackApi(
   { token, fetchImpl = globalThis.fetch },
 ) {
   if (!token) throw new Error("SLACK_BOT_TOKEN is required");
-  const response = await fetchImpl(`https://slack.com/api/${method}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json; charset=utf-8",
-    },
-    body: JSON.stringify(body),
-  });
+  const readOnly = method === "users.info" || method === "conversations.info";
+  const url = `https://slack.com/api/${method}${readOnly ? `?${new URLSearchParams(body)}` : ""}`;
+  const response = await fetchImpl(url, readOnly
+    ? { method: "GET", headers: { authorization: `Bearer ${token}` } }
+    : {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify(body),
+      });
   const result = await response.json();
   if (!response.ok || result.ok !== true) {
     const details = Array.isArray(result.response_metadata?.messages)

@@ -104,6 +104,8 @@ export function createProductionApp({ fetchImpl = globalThis.fetch } = {}) {
         updateView: (body) => callSlack("views.update", body),
         respond: (url, body) => slackResponse(url, body, { fetchImpl }),
         listEmoji: async () => (await callSlack("emoji.list", {})).emoji || {},
+        resolveUser: async (user) => (await callSlack("users.info", { user })).user,
+        resolveChannel: async (channel) => (await callSlack("conversations.info", { channel })).channel,
       };
       return payload?.type === "view_submission"
         ? handleDraftSubmission(payload, dependencies)

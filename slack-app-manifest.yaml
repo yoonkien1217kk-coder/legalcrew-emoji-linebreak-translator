@@ -1,21 +1,24 @@
 display_information:
-  name: SNS 이모지 번역기
+  name: 이모지/줄바꿈 변환
   description: Slack 이모지를 브라우저용 유니코드 이모지로 변환합니다.
   background_color: "#4A154B"
 features:
   bot_user:
-    display_name: SNS 이모지 번역기
+    display_name: SNS Emoji Translator
     always_online: false
   shortcuts:
-    - name: SNS용 이모지 변환
+    - name: 이모지/줄바꿈 변환
       type: message
       callback_id: translate_sns_emoji
-      description: 이 메시지의 Slack 이모지를 복사용 유니코드로 바꿉니다.
+      description: 이 메시지의 Slack 이모지를 변환하고 빈 줄을 유지합니다.
 oauth_config:
   scopes:
     bot:
       - commands
       - emoji:read
+      - users:read
+      - channels:read
+      - groups:read
 settings:
   interactivity:
     is_enabled: true

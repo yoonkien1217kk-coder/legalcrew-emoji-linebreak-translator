@@ -12,7 +12,8 @@ const shortcut = {
 };
 
 function copyResult(view) {
-  return view.blocks.find((block) => block.type === "input").element.initial_value;
+  return view.blocks.find((block) => block.type === "rich_text")
+    .elements[0].elements[0].text;
 }
 
 test("keeps standard emoji while labeling custom aliases without analysis", async () => {
@@ -70,7 +71,7 @@ test("opens a safe modal before checking listed custom aliases", async () => {
   assert.equal(copyResult(updatedView), "기분 😃 [커비춤]");
 });
 
-test("opens a plain text draft after custom emoji lookup", async () => {
+test("opens a fixed copy preview after custom emoji lookup", async () => {
   const events = [];
   let initialView;
   let updatedView;
@@ -98,7 +99,7 @@ test("opens a plain text draft after custom emoji lookup", async () => {
   assert.equal(initialView.callback_id, "emoji_translation_status");
   assert.equal(updatedView.callback_id, "emoji_translation_draft");
   assert.equal(JSON.parse(updatedView.private_metadata).url, "https://hooks.slack.test/private");
-  assert.equal(updatedView.blocks[0].element.initial_value, "기분 😃 [커비춤]");
+  assert.equal(copyResult(updatedView), "기분 😃 [커비춤]");
 });
 
 test("standard emoji results do not require the custom emoji API", async () => {
@@ -113,7 +114,78 @@ test("standard emoji results do not require the custom emoji API", async () => {
     openView: async ({ view: draft }) => { view = draft; },
     respond: async () => { throw new Error("unexpected post"); },
   });
-  assert.equal(view.blocks[0].element.initial_value, "😃 🇰🇷");
+  assert.equal(copyResult(view), "😃 🇰🇷");
+});
+
+test("shows Slack mentions as names in the draft and private result", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: "@윤기은 <@U0BQXNC9GEM> :smiley:" },
+    response_url: "https://hooks.slack.test/private",
+  }, {
+    openView: async ({ view: opened }) => {
+      view = opened;
+      return { view: { id: "V1", hash: "h1" } };
+    },
+    updateView: async ({ view: updated }) => { view = updated; },
+    resolveUser: async () => ({ profile: { display_name: "윤기은" } }),
+    respond: async () => {},
+  });
+  assert.equal(copyResult(view), "@윤기은 @윤기은 😃");
+
+  let posted;
+  await handleDraftSubmission({ type: "view_submission", view }, {
+    getCachedMappings: () => ({}),
+    respond: async (_url, message) => { posted = message.text; },
+  });
+  assert.equal(posted, "@윤기은 @윤기은 😃");
+});
+
+test("uses a safe label for an unavailable user without changing custom emoji handling", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: "<@U0BQXNC9GEM> :커비춤: :man-running:" },
+  }, {
+    openView: async () => ({ view: { id: "V1", hash: "h1" } }),
+    updateView: async ({ view: updated }) => { view = updated; },
+    listEmoji: async () => ({ 커비춤: "https://example.com/kirby.png" }),
+    resolveUser: async () => { throw new Error("user_not_found"); },
+  });
+  assert.equal(copyResult(view), "@알 수 없는 사용자 [커비춤] 🏃‍♂️");
+});
+
+test("shows public and private channel names alongside user and emoji translations", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: "<@U0BQXNC9GEM> <#C09HG7ENBKM> <#G123ABC456> :smiley:" },
+    response_url: "https://hooks.slack.test/private",
+  }, {
+    openView: async () => ({ view: { id: "V1", hash: "h1" } }),
+    updateView: async ({ view: updated }) => { view = updated; },
+    resolveUser: async () => ({ profile: { display_name: "윤기은" } }),
+    resolveChannel: async (id) => ({ name: id === "C09HG7ENBKM" ? "10_기획_sns" : "비공개_기획" }),
+    respond: async () => {},
+  });
+  assert.equal(copyResult(view), "@윤기은 #10_기획_sns #비공개_기획 😃");
+});
+
+test("hides a channel ID when the bot cannot access its name", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: "참고 <#C09HG7ENBKM>" },
+  }, {
+    openView: async ({ view: opened }) => {
+      view = opened;
+      return { view: { id: "V1", hash: "h1" } };
+    },
+    updateView: async ({ view: updated }) => { view = updated; },
+    resolveChannel: async () => { throw new Error("channel_not_found"); },
+  });
+  assert.equal(copyResult(view), "참고 #알 수 없는 채널");
 });
 
 test("posts original joined emoji even if Slack changes the plain text draft", async () => {
@@ -139,7 +211,7 @@ test("posts original joined emoji even if Slack changes the plain text draft", a
   assert.equal(posted, original);
 });
 
-test("uses a plain text draft when long metadata cannot hold the original", async () => {
+test("uses the fixed preview when long metadata cannot hold the original", async () => {
   const modal = buildDraftModal({
     text: "가".repeat(3_100),
     responseUrl: "https://hooks.slack.test/private",
@@ -149,16 +221,13 @@ test("uses a plain text draft when long metadata cannot hold the original", asyn
     type: "view_submission",
     view: {
       ...modal,
-      state: { values: { draft: { translated_text: {
-        type: "plain_text_input",
-        value: modal.blocks[0].element.initial_value,
-      } } } },
+      state: { values: {} },
     },
   }, {
     getCachedMappings: () => ({}),
     respond: async (_url, message) => { posted = message.text; },
   });
-  assert.equal(posted, modal.blocks[0].element.initial_value);
+  assert.equal(posted, copyResult(modal));
 });
 
 test("keeps non-custom aliases unchanged when a long draft is posted privately", async () => {
@@ -173,10 +242,7 @@ test("keeps non-custom aliases unchanged when a long draft is posted privately",
     type: "view_submission",
     view: {
       ...modal,
-      state: { values: { draft: { translated_text: {
-        type: "plain_text_input",
-        value: modal.blocks[0].element.initial_value,
-      } } } },
+      state: { values: {} },
     },
   }, {
     getCachedMappings: () => ({}),

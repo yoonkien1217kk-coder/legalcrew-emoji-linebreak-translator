@@ -10,6 +10,37 @@ function emojiValues(snapshot) {
   );
 }
 
+const USER_MENTION = /<@([UW][A-Z0-9]+)>/g;
+const CHANNEL_MENTION = /<#([CG][A-Z0-9]+)>/g;
+
+async function replaceUserMentions(text, resolveUser) {
+  const ids = [...new Set([...text.matchAll(USER_MENTION)].map((match) => match[1]))];
+  if (!ids.length) return text;
+  const names = new Map(await Promise.all(ids.map(async (id) => {
+    try {
+      const user = await resolveUser(id);
+      return [id, user?.profile?.display_name || user?.profile?.real_name || user?.real_name || user?.name || "알 수 없는 사용자"];
+    } catch {
+      return [id, "알 수 없는 사용자"];
+    }
+  })));
+  return text.replace(USER_MENTION, (_mention, id) => `@${names.get(id)}`);
+}
+
+async function replaceChannelMentions(text, resolveChannel) {
+  const ids = [...new Set([...text.matchAll(CHANNEL_MENTION)].map((match) => match[1]))];
+  if (!ids.length) return text;
+  const names = new Map(await Promise.all(ids.map(async (id) => {
+    try {
+      const channel = await resolveChannel(id);
+      return [id, channel?.name || "알 수 없는 채널"];
+    } catch {
+      return [id, "알 수 없는 채널"];
+    }
+  })));
+  return text.replace(CHANNEL_MENTION, (_mention, id) => `#${names.get(id)}`);
+}
+
 export async function handleShortcut(payload, dependencies) {
   if (
     payload?.type !== "message_action" ||
@@ -20,27 +51,33 @@ export async function handleShortcut(payload, dependencies) {
 
   const source = payload.message?.text || "";
   const initial = translateSlackEmoji(source);
+  const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);
+  const hasChannels = /<#[CG][A-Z0-9]+>/.test(source);
   const draft = Boolean(payload.response_url && dependencies.respond);
   const buildView = (options) => draft
     ? buildDraftModal({ ...options, responseUrl: payload.response_url })
     : buildResultModal(options);
   const opened = await dependencies.openView({
     trigger_id: payload.trigger_id,
-    view: initial.unknown.length
-      ? buildStatusModal("미확인 이모지 단축어를 확인 중입니다. 잠시만 기다려 주세요.")
+    view: initial.unknown.length || hasMentions || hasChannels
+      ? buildStatusModal("변환 결과를 확인 중입니다. 잠시만 기다려 주세요.")
       : buildView({ text: initial.output }),
   });
-  if (initial.unknown.length === 0) return;
+  if (initial.unknown.length === 0 && !hasMentions && !hasChannels) return;
 
   let view;
   try {
-    const emojiIndex = await dependencies.listEmoji();
+    const emojiIndex = initial.unknown.length ? await dependencies.listEmoji() : {};
     const labeledNames = initial.unknown.filter((name) => Object.hasOwn(emojiIndex, name));
     const replacements = Object.fromEntries(
       labeledNames.map((name) => [name, safeAliasLabel(name)]),
     );
     const result = translateSlackEmoji(source, replacements, { preserveUnknown: true });
-    view = buildView({ text: result.output, labeledNames });
+    let text = hasMentions
+      ? await replaceUserMentions(result.output, dependencies.resolveUser)
+      : result.output;
+    if (hasChannels) text = await replaceChannelMentions(text, dependencies.resolveChannel);
+    view = buildView({ text, labeledNames });
   } catch {
     view = buildStatusModal("커스텀 이모지 목록을 확인하지 못해 변환 결과를 만들지 않았습니다. 잠시 후 다시 실행해 주세요.");
   }
