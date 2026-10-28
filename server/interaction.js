@@ -13,6 +13,26 @@ function emojiValues(snapshot) {
 const USER_MENTION = /<@([UW][A-Z0-9]+)>/g;
 const CHANNEL_MENTION = /<#([CG][A-Z0-9]+)>/g;
 
+function plainSlackText(text) {
+  return text.split(/(```[\s\S]*?```|`[^`\n]*`)/g).map((part, index) => {
+    if (index % 2) return part.startsWith("```") ? part.slice(3, -3) : part.slice(1, -1);
+    let plain = part
+      .replace(/(^|\n)(?:>|&gt;) ?/g, "$1")
+      .replace(/<(https?:\/\/[^|>]+|mailto:[^|>]+)\|([^>]+)>/g, "$2")
+      .replace(/<(https?:\/\/[^>]+|mailto:[^>]+)>/g, "$1");
+    for (let i = 0; i < 3; i += 1) {
+      plain = plain.replace(/(^|[^\p{L}\p{N}_])(\*{1,2}|_{1,2}|~{1,2})(?=\S)([^\n]*?\S)\2(?=$|[^\p{L}\p{N}_])/gu, "$1$3");
+    }
+    return plain;
+  }).join("");
+}
+
+function decodeSlackEscapes(text) {
+  return text.replace(/&amp;|&lt;|&gt;/g, (value) => ({
+    "&amp;": "&", "&lt;": "<", "&gt;": ">",
+  })[value]);
+}
+
 async function replaceUserMentions(text, resolveUser) {
   const ids = [...new Set([...text.matchAll(USER_MENTION)].map((match) => match[1]))];
   if (!ids.length) return text;
@@ -49,7 +69,10 @@ export async function handleShortcut(payload, dependencies) {
     return;
   }
 
-  const source = payload.message?.text || "";
+  const richTextBlocks = payload.message?.blocks?.filter((block) => block.type === "rich_text") || [];
+  const source = decodeSlackEscapes(richTextBlocks.length
+    ? richTextBlocks.map((block) => richTextToPlain(block, {})).join("\n")
+    : plainSlackText(payload.message?.text || ""));
   const initial = translateSlackEmoji(source);
   const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);
   const hasChannels = /<#[CG][A-Z0-9]+>/.test(source);
@@ -103,6 +126,15 @@ function richTextToPlain(value, mappings) {
       return translateSlackEmoji(`:${element.name}:`, mappings, { preserveUnknown: true }).output;
     }
     if (element.type === "link") return element.text || element.url || "";
+    if (element.type === "user") return `<@${element.user_id}>`;
+    if (element.type === "channel") return `<#${element.channel_id}>`;
+    if (element.type === "rich_text_list") {
+      const indent = "  ".repeat(Math.min(Math.max(element.indent || 0, 0), 8));
+      const offset = element.offset || 0;
+      return element.elements.map((item, index) =>
+        `${indent}${element.style === "ordered" ? `${offset + index + 1}.` : "-"} ${elementText(item)}`,
+      ).join("\n");
+    }
     if (Array.isArray(element.elements)) {
       return element.elements.map(elementText).join(
         element.type === "rich_text_list" ? "\n" : "",

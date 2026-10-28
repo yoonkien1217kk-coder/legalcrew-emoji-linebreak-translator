@@ -117,6 +117,114 @@ test("standard emoji results do not require the custom emoji API", async () => {
   assert.equal(copyResult(view), "😃 🇰🇷");
 });
 
+test("ignores Slack quote and emphasis formatting while keeping the post text", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: {
+      text: ">*공지* :smiley:\n>둘째 줄",
+      blocks: [{ type: "rich_text", elements: [
+        { type: "rich_text_quote", elements: [
+          { type: "text", text: "공지", style: { bold: true } },
+          { type: "text", text: " " },
+          { type: "emoji", name: "smiley" },
+          { type: "text", text: "\n둘째 줄" },
+        ] },
+      ] }],
+      response_url: "https://hooks.slack.test/private",
+    },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+    respond: async () => {},
+  });
+  assert.equal(copyResult(view), "공지 😃\n둘째 줄");
+});
+
+test("removes Slack markup when a shortcut has no rich text blocks", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: ">*공지* :smiley:\n>_둘째 줄_ <https://example.com|자세히>" },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(copyResult(view), "공지 😃\n둘째 줄 자세히");
+});
+
+test("keeps visible words from every Slack style in a text-only shortcut", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: "*(굵게)* _(기울임)_ __밑줄__ ~취소선~ <https://example.com|링크>\n&gt; 인용구 :smiley:\n`코드 *그대로*`\n```코드블럭\n둘째 줄```\n1. 숫자\n- 글머리" },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(copyResult(view), "(굵게) (기울임) 밑줄 취소선 링크\n인용구 😃\n코드 *그대로*\n코드블럭\n둘째 줄\n1. 숫자\n- 글머리");
+});
+
+test("keeps list markers and plain content from Slack rich text styles", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: {
+      text: "*굵게* _기울임_ ~취소선~ >인용구",
+      blocks: [{ type: "rich_text", elements: [
+        { type: "rich_text_section", elements: [
+          { type: "text", text: "굵게", style: { bold: true } },
+          { type: "text", text: " " },
+          { type: "text", text: "기울임", style: { italic: true } },
+          { type: "text", text: " " },
+          { type: "text", text: "밑줄", style: { underline: true } },
+          { type: "text", text: " " },
+          { type: "text", text: "취소선", style: { strike: true } },
+          { type: "text", text: " " },
+          { type: "link", text: "링크", url: "https://example.com" },
+          { type: "text", text: " " },
+          { type: "text", text: "코드", style: { code: true } },
+        ] },
+        { type: "rich_text_quote", elements: [{ type: "text", text: "인용구" }] },
+        { type: "rich_text_preformatted", elements: [{ type: "text", text: "코드블럭\n둘째 줄" }] },
+        { type: "rich_text_list", style: "ordered", elements: [
+          { type: "rich_text_section", elements: [{ type: "text", text: "첫째" }] },
+          { type: "rich_text_section", elements: [{ type: "text", text: "둘째" }] },
+        ] },
+        { type: "rich_text_list", style: "bullet", elements: [
+          { type: "rich_text_section", elements: [{ type: "text", text: "글머리" }] },
+        ] },
+      ] }],
+    },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(copyResult(view), "굵게 기울임 밑줄 취소선 링크 코드\n인용구\n코드블럭\n둘째 줄\n1. 첫째\n2. 둘째\n- 글머리");
+});
+
+test("keeps mentions and custom emoji conversion in formatted rich text", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: {
+      text: "<@U0BQXNC9GEM> <#C09HG7ENBKM> :커비춤: :smiley:",
+      blocks: [{ type: "rich_text", elements: [{ type: "rich_text_section", elements: [
+        { type: "user", user_id: "U0BQXNC9GEM" },
+        { type: "text", text: " " },
+        { type: "channel", channel_id: "C09HG7ENBKM" },
+        { type: "text", text: " " },
+        { type: "emoji", name: "커비춤" },
+        { type: "text", text: " " },
+        { type: "emoji", name: "smiley" },
+      ] }] }],
+    },
+  }, {
+    openView: async () => ({ view: { id: "V1", hash: "h1" } }),
+    updateView: async ({ view: updated }) => { view = updated; },
+    listEmoji: async () => ({ 커비춤: "https://example.com/kirby.png" }),
+    resolveUser: async () => ({ profile: { display_name: "윤기은" } }),
+    resolveChannel: async () => ({ name: "10_기획_sns" }),
+  });
+  assert.equal(copyResult(view), "@윤기은 #10_기획_sns [커비춤] 😃");
+});
+
 test("shows Slack mentions as names in the draft and private result", async () => {
   let view;
   await handleShortcut({
