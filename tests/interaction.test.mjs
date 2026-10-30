@@ -360,6 +360,56 @@ test("uses the fixed preview when long metadata cannot hold the original", async
   assert.equal(posted, copyResult(modal));
 });
 
+test("keeps emoji and Facebook line spacing through a long desktop and mobile result", async () => {
+  const source = `첫 줄 :smiley:\n\n둘째   줄 :kr:\n${"본문".repeat(1_600)}`;
+  const expected = `첫 줄 😃\n\u200B\n둘째 \u200B \u200B 줄 🇰🇷\n${"본문".repeat(1_600)}`;
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: source },
+    response_url: "https://hooks.slack.test/private",
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+    respond: async () => {},
+  });
+  assert.equal(view.private_metadata, "https://hooks.slack.test/private");
+  assert.equal(copyResult(view), expected);
+
+  let posted;
+  await handleDraftSubmission({
+    type: "view_submission",
+    view: { ...view, state: { values: {} } },
+  }, {
+    getCachedMappings: () => ({}),
+    respond: async (_url, message) => { posted = message.text; },
+  });
+  assert.equal(posted, expected);
+});
+
+test("shows a clear status instead of a truncated copy result above 40,000 characters", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: "가".repeat(40_001) },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(view.callback_id, "emoji_translation_status");
+  assert.match(view.blocks[0].text.text, /40,000/);
+});
+
+test("checks the result length after Facebook blank-line preservation", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: { text: `${"가".repeat(39_999)}\n\n` },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(view.callback_id, "emoji_translation_status");
+  assert.match(view.blocks[0].text.text, /40,000/);
+});
+
 test("keeps non-custom aliases unchanged when a long draft is posted privately", async () => {
   const original = `${"가".repeat(2_950)} :future_standard_alias: [커비춤]`;
   const modal = buildDraftModal({

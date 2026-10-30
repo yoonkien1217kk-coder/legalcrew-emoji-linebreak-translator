@@ -1,18 +1,16 @@
-const MAX_INITIAL_VALUE_LENGTH = 3_000;
-const TRUNCATION_SUFFIX = "\n…(Slack 표시 한도로 일부 생략)";
+const MAX_RESULT_LENGTH = 40_000;
 
-function truncateForSlack(text) {
-  const characters = Array.from(String(text));
-  if (characters.length <= MAX_INITIAL_VALUE_LENGTH) return characters.join("");
-  const suffix = Array.from(TRUNCATION_SUFFIX);
-  return characters
-    .slice(0, MAX_INITIAL_VALUE_LENGTH - suffix.length)
-    .concat(suffix)
-    .join("");
+export function exceedsResultLimit(text) {
+  return Array.from(String(text)).length > MAX_RESULT_LENGTH;
+}
+
+function checkedResultText(text) {
+  if (exceedsResultLimit(text)) throw new RangeError("변환 결과가 40,000자를 넘었습니다.");
+  return String(text);
 }
 
 export function buildResultMessage({ text }) {
-  const resultText = truncateForSlack(text) || "변환할 텍스트가 없습니다.";
+  const resultText = checkedResultText(text) || "변환할 텍스트가 없습니다.";
   return {
     response_type: "ephemeral",
     replace_original: false,
@@ -41,7 +39,7 @@ export function buildStatusModal(message) {
 }
 
 export function buildDraftModal({ text, responseUrl, pendingNames = [], labeledNames = [], error = "" }) {
-  const resultText = truncateForSlack(text) || " ";
+  const resultText = checkedResultText(text) || " ";
   const metadataWithText = JSON.stringify({ url: responseUrl, text: resultText });
   const contextText = pendingNames.length
     ? `커스텀 이모지 ${pendingNames.length}개를 확인 중입니다. 결과가 곧 갱신됩니다.`
@@ -70,7 +68,7 @@ export function buildDraftModal({ text, responseUrl, pendingNames = [], labeledN
 }
 
 export function buildResultModal({ text, pendingNames = [], labeledNames = [], error = "" }) {
-  const resultText = truncateForSlack(text) || " ";
+  const resultText = checkedResultText(text) || " ";
   const contextText = pendingNames.length
     ? `커스텀 이모지 ${pendingNames.length}개를 확인 중입니다. 결과가 곧 갱신됩니다.`
     : `${error || (labeledNames.length ? `커스텀 이모지 ${labeledNames.length}개는 이름으로 표시했습니다. ` : "")}코드 블록의 복사 기능을 사용하세요.`;

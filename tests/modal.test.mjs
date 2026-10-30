@@ -51,7 +51,7 @@ test("keeps modal metadata within Slack's limit for long results", () => {
     responseUrl: "https://hooks.slack.test/private",
   });
   assert.ok(view.private_metadata.length <= 3_000);
-  assert.ok(view.blocks[0].elements[0].elements[0].text.length <= 3_000);
+  assert.equal(view.blocks[0].elements[0].elements[0].text, "가".repeat(3_100));
 });
 
 test("builds a private, copyable message containing only the translated result", () => {
@@ -99,11 +99,22 @@ test("shows pending custom emoji names without exposing message metadata", () =>
   assert.notEqual(pendingResult.block_id, finalResult.block_id);
 });
 
-test("truncates oversized results at the Slack input limit", () => {
-  const view = buildResultModal({ text: "가".repeat(3_100) });
-  const result = view.blocks.find((block) => block.type === "rich_text");
-  const value = result.elements[0].elements[0].text;
+test("keeps the full 40,000-character result for desktop and mobile copying", () => {
+  const text = "가".repeat(39_996) + "\n😃\n끝";
+  const draft = buildDraftModal({ text, responseUrl: "https://hooks.slack.test/private" });
+  const desktop = buildResultModal({ text });
+  const privateMessage = buildResultMessage({ text });
 
-  assert.ok(Array.from(value).length <= 3_000);
-  assert.match(value, /Slack 표시 한도로 일부 생략\)$/);
+  assert.equal(draft.private_metadata, "https://hooks.slack.test/private");
+  assert.equal(draft.blocks[0].elements[0].elements[0].text, text);
+  assert.equal(desktop.blocks[0].elements[0].elements[0].text, text);
+  assert.equal(privateMessage.text, text);
+  assert.equal(privateMessage.blocks[0].elements[0].elements[0].text, text);
+});
+
+test("rejects results over 40,000 characters instead of silently truncating", () => {
+  const text = "가".repeat(40_001);
+  assert.throws(() => buildDraftModal({ text, responseUrl: "https://hooks.slack.test/private" }), /40,000/);
+  assert.throws(() => buildResultModal({ text }), /40,000/);
+  assert.throws(() => buildResultMessage({ text }), /40,000/);
 });

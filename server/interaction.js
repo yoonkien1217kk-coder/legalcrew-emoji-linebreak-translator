@@ -1,5 +1,5 @@
 import { safeAliasLabel, translateSlackEmoji } from "../dist/translator.js";
-import { buildDraftModal, buildResultMessage, buildResultModal, buildStatusModal } from "./modal.js";
+import { buildDraftModal, buildResultMessage, buildResultModal, buildStatusModal, exceedsResultLimit } from "./modal.js";
 
 function emojiValues(snapshot) {
   return Object.fromEntries(
@@ -82,9 +82,11 @@ export async function handleShortcut(payload, dependencies) {
   const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);
   const hasChannels = /<#[CG][A-Z0-9]+>/.test(source);
   const draft = Boolean(payload.response_url && dependencies.respond);
-  const buildView = (options) => draft
-    ? buildDraftModal({ ...options, responseUrl: payload.response_url })
-    : buildResultModal(options);
+  const buildView = (options) => exceedsResultLimit(options.text)
+    ? buildStatusModal("변환 결과가 40,000자를 넘었습니다. 원문을 나눠서 다시 실행해 주세요.")
+    : draft
+      ? buildDraftModal({ ...options, responseUrl: payload.response_url })
+      : buildResultModal(options);
   const opened = await dependencies.openView({
     trigger_id: payload.trigger_id,
     view: initial.unknown.length || hasMentions || hasChannels
