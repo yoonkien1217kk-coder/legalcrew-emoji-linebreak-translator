@@ -69,9 +69,14 @@ export async function handleShortcut(payload, dependencies) {
     return;
   }
 
-  const richTextBlocks = payload.message?.blocks?.filter((block) => block.type === "rich_text") || [];
-  const source = decodeSlackEscapes(richTextBlocks.length
-    ? richTextBlocks.map((block) => richTextToPlain(block, {})).join("\n")
+  const contentBlocks = payload.message?.blocks?.filter((block) =>
+    ["rich_text", "header", "section"].includes(block.type)) || [];
+  const source = decodeSlackEscapes(contentBlocks.length
+    ? contentBlocks.map((block) => block.type === "rich_text"
+      ? richTextToPlain(block, {})
+      : block.text?.type === "mrkdwn"
+        ? plainSlackText(block.text.text || "")
+        : block.text?.text || "").join("\n")
     : plainSlackText(payload.message?.text || ""));
   const initial = translateSlackEmoji(source);
   const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);

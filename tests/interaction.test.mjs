@@ -199,6 +199,28 @@ test("keeps list markers and plain content from Slack rich text styles", async (
   assert.equal(copyResult(view), "굵게 기울임 밑줄 취소선 링크 코드\n인용구\n코드블럭\n둘째 줄\n1. 첫째\n2. 둘째\n- 글머리");
 });
 
+test("keeps large, medium and small Slack heading text in source order", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: {
+      text: "큰 제목\n중간 제목\n작은 제목\n본문 :smiley:",
+      blocks: [
+        { type: "header", level: 1, text: { type: "plain_text", text: "큰 제목" } },
+        { type: "header", level: 2, text: { type: "plain_text", text: "중간 제목" } },
+        { type: "header", level: 3, text: { type: "plain_text", text: "작은 제목" } },
+        { type: "rich_text", elements: [{ type: "rich_text_section", elements: [
+          { type: "text", text: "본문 " },
+          { type: "emoji", name: "smiley" },
+        ] }] },
+      ],
+    },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(copyResult(view), "큰 제목\n중간 제목\n작은 제목\n본문 😃");
+});
+
 test("keeps mentions and custom emoji conversion in formatted rich text", async () => {
   let view;
   await handleShortcut({
