@@ -70,13 +70,22 @@ export async function handleShortcut(payload, dependencies) {
   }
 
   const contentBlocks = payload.message?.blocks?.filter((block) =>
-    ["rich_text", "header", "section"].includes(block.type)) || [];
-  const source = decodeSlackEscapes(contentBlocks.length
-    ? contentBlocks.map((block) => block.type === "rich_text"
-      ? richTextToPlain(block, {})
-      : block.text?.type === "mrkdwn"
-        ? plainSlackText(block.text.text || "")
-        : block.text?.text || "").join("\n")
+    ["rich_text", "header", "section", "divider"].includes(block.type)) || [];
+  const textBlocks = contentBlocks.flatMap((block, index) =>
+    block.type === "divider" ? [] : [{ block, index }]);
+  const source = decodeSlackEscapes(textBlocks.length
+    ? textBlocks.map(({ block, index }, position) => {
+      const value = block.type === "rich_text"
+        ? richTextToPlain(block, {})
+        : block.text?.type === "mrkdwn"
+          ? plainSlackText(block.text.text || "")
+          : block.text?.text || "";
+      const previous = textBlocks[position - 1];
+      const separated = position && (block.type === "header" ||
+        previous.block.type === "header" ||
+        contentBlocks.slice(previous.index + 1, index).some((item) => item.type === "divider"));
+      return `${position ? separated ? "\n\n" : "\n" : ""}${value}`;
+    }).join("")
     : plainSlackText(payload.message?.text || ""));
   const initial = translateSlackEmoji(source);
   const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);

@@ -199,7 +199,7 @@ test("keeps list markers and plain content from Slack rich text styles", async (
   assert.equal(copyResult(view), "굵게 기울임 밑줄 취소선 링크 코드\n인용구\n코드블럭\n둘째 줄\n1. 첫째\n2. 둘째\n- 글머리");
 });
 
-test("keeps large, medium and small Slack heading text in source order", async () => {
+test("separates large, medium and small Slack headings with blank lines", async () => {
   let view;
   await handleShortcut({
     ...shortcut,
@@ -218,7 +218,29 @@ test("keeps large, medium and small Slack heading text in source order", async (
   }, {
     openView: async ({ view: opened }) => { view = opened; },
   });
-  assert.equal(copyResult(view), "큰 제목\n중간 제목\n작은 제목\n본문 😃");
+  assert.equal(copyResult(view), "큰 제목\n\u200B\n중간 제목\n\u200B\n작은 제목\n\u200B\n본문 😃");
+});
+
+test("turns a Slack divider into one blank line between paragraphs", async () => {
+  let view;
+  await handleShortcut({
+    ...shortcut,
+    message: {
+      text: "앞문단 :smiley:\n뒷문단",
+      blocks: [
+        { type: "rich_text", elements: [{ type: "rich_text_section", elements: [
+          { type: "text", text: "앞문단 " }, { type: "emoji", name: "smiley" },
+        ] }] },
+        { type: "divider" },
+        { type: "rich_text", elements: [{ type: "rich_text_section", elements: [
+          { type: "text", text: "뒷문단" },
+        ] }] },
+      ],
+    },
+  }, {
+    openView: async ({ view: opened }) => { view = opened; },
+  });
+  assert.equal(copyResult(view), "앞문단 😃\n\u200B\n뒷문단");
 });
 
 test("keeps mentions and custom emoji conversion in formatted rich text", async () => {
