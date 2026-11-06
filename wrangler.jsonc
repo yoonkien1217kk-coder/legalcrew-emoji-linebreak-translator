@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "legalcrew-emoji-translator",
+  "main": "./server/worker.js",
+  "compatibility_date": "2026-11-06",
+  "assets": {
+    "directory": "./dist"
+  },
+  "vars": {
+    "SLACK_TEAM_ID": "T08B5H13A1G"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true },
+    "traces": { "enabled": true }
+  }
+}
