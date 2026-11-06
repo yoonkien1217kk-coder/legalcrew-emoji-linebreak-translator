@@ -22,7 +22,7 @@ oauth_config:
 settings:
   interactivity:
     is_enabled: true
-    request_url: https://web-production-d545e.up.railway.app/slack/interactions
+    request_url: https://legalcrew-emoji-translator.yoonkien1217kk.workers.dev/slack/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
