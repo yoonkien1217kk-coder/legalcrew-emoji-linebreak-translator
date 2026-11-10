@@ -63,7 +63,7 @@ curl -fsS http://127.0.0.1:3000/health
 
 ### Cloudflare Workers 무료 배포
 
-`wrangler.jsonc`는 Slack 요청용 Worker와 `dist/`의 정적 웹 번역기를 함께 배포합니다. 기존 Railway 서버와 같은 변환 모듈을 사용합니다. 현재 Slack 앱의 Request URL은 Cloudflare Worker를 가리키며, Railway는 전환 직후의 롤백 경로로 유지합니다.
+`wrangler.jsonc`는 Slack 요청용 Worker와 `dist/`의 정적 웹 번역기를 함께 배포합니다. 기존 Railway 서버와 같은 변환 모듈을 사용합니다. 현재 Slack 앱의 Request URL은 Cloudflare Worker를 가리킵니다. Railway의 `web` 배포는 2026년 11월 10일 중지해 Offline 상태입니다.
 
 ```bash
 npm ci
@@ -75,7 +75,7 @@ npx wrangler secret put SLACK_SIGNING_SECRET
 npx wrangler secret put SLACK_BOT_TOKEN
 ```
 
-`SLACK_TEAM_ID`는 `wrangler.jsonc`에 LegalCrew의 공개 Team ID로 설정돼 있습니다. 비밀값은 대화나 저장소에 기록하지 말고 Wrangler의 대화형 입력으로 등록합니다. 새 Worker의 `/health`와 웹 화면을 확인한 뒤, Slack 앱 관리 화면의 **Interactivity & Shortcuts → Request URL**을 새 Worker 주소의 `/slack/interactions`로 바꿉니다. 현재 기본 이모지 변환, 커스텀 이모지 `[이름]` 표시, 본인 전용 복사용 메시지는 실제 Slack에서 확인했습니다. Railway를 중지하기 전에는 긴 메시지도 확인합니다. 롤백할 때는 Request URL을 `https://web-production-d545e.up.railway.app/slack/interactions`로 되돌립니다.
+`SLACK_TEAM_ID`는 `wrangler.jsonc`에 LegalCrew의 공개 Team ID로 설정돼 있습니다. 비밀값은 대화나 저장소에 기록하지 말고 Wrangler의 대화형 입력으로 등록합니다. 새 Worker의 `/health`와 웹 화면을 확인한 뒤, Slack 앱 관리 화면의 **Interactivity & Shortcuts → Request URL**을 새 Worker 주소의 `/slack/interactions`로 바꿉니다. 현재 기본 이모지 변환, 커스텀 이모지 `[이름]` 표시, 본인 전용 복사용 메시지는 실제 Slack에서 확인했습니다. 긴 메시지의 실제 Slack 시험은 아직 남아 있습니다. Railway로 롤백해야 한다면 먼저 해당 서비스를 다시 배포해 정상 응답을 확인한 다음 Request URL을 `https://web-production-d545e.up.railway.app/slack/interactions`로 되돌립니다.
 
 Workers Free의 요청당 CPU 제한은 10ms입니다. 긴 Slack 메시지는 배포 후 실제 요청과 Worker 오류 지표로 확인해야 합니다. Worker 배포만으로 현재 Slack 앱 설정이나 봇 권한이 자동 변경되지는 않습니다.
 
