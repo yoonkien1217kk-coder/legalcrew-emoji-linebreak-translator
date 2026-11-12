@@ -84,6 +84,19 @@ test("fetches user and channel names with query parameters", async () => {
   ]);
 });
 
+test("fetches the reacted message with Slack reactions.get query parameters", async () => {
+  let called;
+  await slackApi("reactions.get", { channel: "C123", timestamp: "123.456" }, {
+    token: "xoxb-test",
+    fetchImpl: async (url, options) => {
+      called = { url, options };
+      return new Response(JSON.stringify({ ok: true, message: { text: "hi", ts: "123.456" } }));
+    },
+  });
+  assert.equal(called.url, "https://slack.com/api/reactions.get?channel=C123&timestamp=123.456");
+  assert.equal(called.options.method, "GET");
+});
+
 test("reports the Slack method and safe validation details", async () => {
   const fetchImpl = async () =>
     new Response(

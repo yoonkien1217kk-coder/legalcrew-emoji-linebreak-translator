@@ -37,7 +37,7 @@ export async function slackApi(
   { token, fetchImpl = globalThis.fetch },
 ) {
   if (!token) throw new Error("SLACK_BOT_TOKEN is required");
-  const readOnly = method === "users.info" || method === "conversations.info";
+  const readOnly = ["users.info", "conversations.info", "reactions.get"].includes(method);
   const url = `https://slack.com/api/${method}${readOnly ? `?${new URLSearchParams(body)}` : ""}`;
   const response = await fetchImpl(url, readOnly
     ? { method: "GET", headers: { authorization: `Bearer ${token}` } }
