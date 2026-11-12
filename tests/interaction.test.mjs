@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { handleShortcut, handleDraftSubmission } from "../server/interaction.js";
+import { handleShortcut, handleDraftSubmission, handleReaction } from "../server/interaction.js";
 import { buildDraftModal } from "../server/modal.js";
 
 const shortcut = {
@@ -10,6 +10,26 @@ const shortcut = {
   trigger_id: "trigger-1",
   message: { text: "기분 :smiley: :커비춤:" },
 };
+
+test("reaction converts the selected message and sends a private result in place", async () => {
+  const calls = [];
+  await handleReaction({
+    type: "reaction_added", reaction: "arrows_counterclockwise", user: "U1",
+    item: { type: "message", channel: "C1", ts: "1.2" },
+  }, {
+    getMessage: async (item) => {
+      calls.push(["get", item.channel, item.ts]);
+      return { text: "인사 :smiley: :커비춤:", ts: item.ts };
+    },
+    listEmoji: async () => ({ 커비춤: "https://example.com/kirby.png" }),
+    postPrivate: async (body) => { calls.push(["post", body]); },
+  });
+  assert.deepEqual(calls[0], ["get", "C1", "1.2"]);
+  assert.equal(calls[1][0], "post");
+  assert.equal(calls[1][1].channel, "C1");
+  assert.equal(calls[1][1].user, "U1");
+  assert.equal(calls[1][1].blocks[0].elements[0].elements[0].text, "인사 😃 [커비춤]");
+});
 
 function copyResult(view) {
   return view.blocks.find((block) => block.type === "rich_text")

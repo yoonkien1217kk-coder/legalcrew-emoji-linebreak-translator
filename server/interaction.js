@@ -61,19 +61,12 @@ async function replaceChannelMentions(text, resolveChannel) {
   return text.replace(CHANNEL_MENTION, (_mention, id) => `#${names.get(id)}`);
 }
 
-export async function handleShortcut(payload, dependencies) {
-  if (
-    payload?.type !== "message_action" ||
-    payload.callback_id !== "translate_sns_emoji"
-  ) {
-    return;
-  }
-
-  const contentBlocks = payload.message?.blocks?.filter((block) =>
+function messageSource(message) {
+  const contentBlocks = message?.blocks?.filter((block) =>
     ["rich_text", "header", "section", "divider"].includes(block.type)) || [];
   const textBlocks = contentBlocks.flatMap((block, index) =>
     block.type === "divider" ? [] : [{ block, index }]);
-  const source = decodeSlackEscapes(textBlocks.length
+  return decodeSlackEscapes(textBlocks.length
     ? textBlocks.map(({ block, index }, position) => {
       const value = block.type === "rich_text"
         ? richTextToPlain(block, {})
@@ -86,7 +79,51 @@ export async function handleShortcut(payload, dependencies) {
         contentBlocks.slice(previous.index + 1, index).some((item) => item.type === "divider"));
       return `${position ? separated ? "\n\n" : "\n" : ""}${value}`;
     }).join("")
-    : plainSlackText(payload.message?.text || ""));
+    : plainSlackText(message?.text || ""));
+}
+
+async function resolveTranslation(source, dependencies) {
+  const initial = translateSlackEmoji(source);
+  const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);
+  const hasChannels = /<#[CG][A-Z0-9]+>/.test(source);
+  if (!initial.unknown.length && !hasMentions && !hasChannels) return initial.output;
+  const emojiIndex = initial.unknown.length ? await dependencies.listEmoji() : {};
+  const replacements = Object.fromEntries(initial.unknown
+    .filter((name) => Object.hasOwn(emojiIndex, name))
+    .map((name) => [name, safeAliasLabel(name)]));
+  const result = translateSlackEmoji(source, replacements, { preserveUnknown: true });
+  let text = hasMentions
+    ? await replaceUserMentions(result.output, dependencies.resolveUser)
+    : result.output;
+  if (hasChannels) text = await replaceChannelMentions(text, dependencies.resolveChannel);
+  return text;
+}
+
+export async function handleReaction(event, dependencies) {
+  if (event?.type !== "reaction_added" || event.item?.type !== "message") return;
+  const message = await dependencies.getMessage(event.item);
+  if (!message || message.ts !== event.item.ts) return;
+  const source = messageSource(message);
+  const text = await resolveTranslation(source, dependencies);
+  if (!text.trim()) return;
+  const result = buildResultMessage({ text });
+  await dependencies.postPrivate({
+    channel: event.item.channel,
+    user: event.user,
+    text: result.text,
+    blocks: result.blocks,
+  });
+}
+
+export async function handleShortcut(payload, dependencies) {
+  if (
+    payload?.type !== "message_action" ||
+    payload.callback_id !== "translate_sns_emoji"
+  ) {
+    return;
+  }
+
+  const source = messageSource(payload.message);
   const initial = translateSlackEmoji(source);
   const hasMentions = /<@[UW][A-Z0-9]+>/.test(source);
   const hasChannels = /<#[CG][A-Z0-9]+>/.test(source);
@@ -108,14 +145,7 @@ export async function handleShortcut(payload, dependencies) {
   try {
     const emojiIndex = initial.unknown.length ? await dependencies.listEmoji() : {};
     const labeledNames = initial.unknown.filter((name) => Object.hasOwn(emojiIndex, name));
-    const replacements = Object.fromEntries(
-      labeledNames.map((name) => [name, safeAliasLabel(name)]),
-    );
-    const result = translateSlackEmoji(source, replacements, { preserveUnknown: true });
-    let text = hasMentions
-      ? await replaceUserMentions(result.output, dependencies.resolveUser)
-      : result.output;
-    if (hasChannels) text = await replaceChannelMentions(text, dependencies.resolveChannel);
+    const text = await resolveTranslation(source, { ...dependencies, listEmoji: async () => emojiIndex });
     view = buildView({ text, labeledNames });
   } catch {
     view = buildStatusModal("커스텀 이모지 목록을 확인하지 못해 변환 결과를 만들지 않았습니다. 잠시 후 다시 실행해 주세요.");

@@ -7,7 +7,8 @@
     "directory": "./dist"
   },
   "vars": {
-    "SLACK_TEAM_ID": "T08B5H13A1G"
+    "SLACK_TEAM_ID": "T08B5H13A1G",
+    "REACTION_TRIGGER_EMOJI": "arrows_counterclockwise"
   },
   "observability": {
     "enabled": true,

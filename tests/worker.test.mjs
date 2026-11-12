@@ -29,6 +29,23 @@ function signedRequest(payload) {
   });
 }
 
+function signedEvent(payload) {
+  const body = JSON.stringify(payload);
+  const timestamp = "1700000000";
+  const signature = `v0=${createHmac("sha256", SECRET)
+    .update(`v0:${timestamp}:${body}`)
+    .digest("hex")}`;
+  return new Request("https://example.workers.dev/slack/events", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-slack-request-timestamp": timestamp,
+      "x-slack-signature": signature,
+    },
+    body,
+  });
+}
+
 function executionContext() {
   const pending = [];
   return {
@@ -92,4 +109,44 @@ test("Worker refuses a request body over 1 MB before processing", async () => {
   }), ENV, ctx);
   assert.equal(response.status, 413);
   assert.equal(ctx.pending.length, 0);
+});
+
+test("Worker verifies Slack event challenge and acknowledges a reaction", async () => {
+  const seen = [];
+  const app = createWorkerApp({
+    nowSeconds: () => NOW,
+    handleReaction: async (event) => { seen.push(event.reaction); },
+  });
+  const env = { ...ENV, REACTION_TRIGGER_EMOJI: "arrows_counterclockwise" };
+  const challenge = await app.fetch(signedEvent({
+    type: "url_verification", challenge: "verify-me",
+  }), env, executionContext());
+  assert.equal(challenge.status, 200);
+  assert.equal((await challenge.json()).challenge, "verify-me");
+  const ctx = executionContext();
+  const reaction = await app.fetch(signedEvent({
+    type: "event_callback", team_id: "T-LEGAL",
+    event: { type: "reaction_added", reaction: "arrows_counterclockwise", user: "U1",
+      item: { type: "message", channel: "C1", ts: "1.2" } },
+  }), env, ctx);
+  assert.equal(reaction.status, 200);
+  await Promise.all(ctx.pending);
+  assert.deepEqual(seen, ["arrows_counterclockwise"]);
+});
+
+test("Worker leaves reaction trial off without its flag and ignores unrelated reactions", async () => {
+  const seen = [];
+  const app = createWorkerApp({
+    nowSeconds: () => NOW,
+    handleReaction: async (event) => { seen.push(event.reaction); },
+  });
+  const payload = { type: "event_callback", team_id: "T-LEGAL",
+    event: { type: "reaction_added", reaction: "arrows_counterclockwise", user: "U1",
+      item: { type: "message", channel: "C1", ts: "1.2" } } };
+  await app.fetch(signedEvent(payload), ENV, executionContext());
+  const ctx = executionContext();
+  await app.fetch(signedEvent({ ...payload, event: { ...payload.event, reaction: "thumbsup" } }),
+    { ...ENV, REACTION_TRIGGER_EMOJI: "arrows_counterclockwise" }, ctx);
+  await Promise.all(ctx.pending);
+  assert.deepEqual(seen, []);
 });

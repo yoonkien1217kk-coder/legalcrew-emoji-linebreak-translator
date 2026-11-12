@@ -1,4 +1,4 @@
-import { handleDraftSubmission, handleShortcut } from "./interaction.js";
+import { handleDraftSubmission, handleReaction, handleShortcut } from "./interaction.js";
 import { slackApi, slackResponse, verifySlackRequest } from "./slack.js";
 
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -35,10 +35,10 @@ function jsonResponse(status, body) {
   });
 }
 
-async function productionInteraction(payload, env) {
+function slackDependencies(env) {
   const callSlack = (method, body) =>
     slackApi(method, body, { token: env.SLACK_BOT_TOKEN });
-  const dependencies = {
+  return {
     getCachedMappings: () => ({}),
     openView: (body) => callSlack("views.open", body),
     updateView: (body) => callSlack("views.update", body),
@@ -46,14 +46,26 @@ async function productionInteraction(payload, env) {
     listEmoji: async () => (await callSlack("emoji.list", {})).emoji || {},
     resolveUser: async (user) => (await callSlack("users.info", { user })).user,
     resolveChannel: async (channel) => (await callSlack("conversations.info", { channel })).channel,
+    getMessage: async ({ channel, ts }) =>
+      (await callSlack("reactions.get", { channel, timestamp: ts })).message,
+    postPrivate: (body) => callSlack("chat.postEphemeral", body),
   };
+}
+
+async function productionInteraction(payload, env) {
+  const dependencies = slackDependencies(env);
   return payload?.type === "view_submission"
     ? handleDraftSubmission(payload, dependencies)
     : handleShortcut(payload, dependencies);
 }
 
+async function productionReaction(event, env) {
+  return handleReaction(event, slackDependencies(env));
+}
+
 export function createWorkerApp({
   handleInteraction = productionInteraction,
+  handleReaction: processReaction = productionReaction,
   nowSeconds = () => Math.floor(Date.now() / 1000),
   logger = console,
 } = {}) {
@@ -63,7 +75,8 @@ export function createWorkerApp({
       if (request.method === "GET" && pathname === "/health") {
         return jsonResponse(200, { ok: true });
       }
-      if (request.method !== "POST" || pathname !== "/slack/interactions") {
+      if (request.method !== "POST" ||
+          !["/slack/interactions", "/slack/events"].includes(pathname)) {
         return jsonResponse(404, { ok: false });
       }
 
@@ -79,17 +92,33 @@ export function createWorkerApp({
           return jsonResponse(401, { ok: false });
         }
 
-        const encodedPayload = new URLSearchParams(rawBody).get("payload");
-        const payload = JSON.parse(encodedPayload || "null");
+        const payload = pathname === "/slack/events"
+          ? JSON.parse(rawBody)
+          : JSON.parse(new URLSearchParams(rawBody).get("payload") || "null");
+        if (pathname === "/slack/events" && payload?.type === "url_verification") {
+          return jsonResponse(200, { challenge: payload.challenge });
+        }
         const payloadTeamId = payload?.team?.id || payload?.team_id || "";
         if (env.SLACK_TEAM_ID && payloadTeamId !== env.SLACK_TEAM_ID) {
           return jsonResponse(403, { ok: false });
         }
 
+        const isReaction = pathname === "/slack/events";
+        if (isReaction && !(env.REACTION_TRIGGER_EMOJI &&
+          payload?.type === "event_callback" &&
+          payload.event?.type === "reaction_added" &&
+          payload.event.reaction === env.REACTION_TRIGGER_EMOJI &&
+          payload.event.user && payload.event.item?.type === "message" &&
+          payload.event.item.channel && payload.event.item.ts)) {
+          return new Response(null, { status: 200 });
+        }
+
         ctx.waitUntil(Promise.resolve()
-          .then(() => handleInteraction(payload, env))
+          .then(() => isReaction
+            ? processReaction(payload.event, env)
+            : handleInteraction(payload, env))
           .catch((error) => {
-            logger.error(`Slack interaction failed: ${error?.message || "unknown"}`);
+            logger.error(`Slack ${isReaction ? "reaction" : "interaction"} failed: ${error?.message || "unknown"}`);
           }));
         return new Response(null, { status: 200 });
       } catch (error) {
