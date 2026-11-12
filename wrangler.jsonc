@@ -8,7 +8,7 @@
   },
   "vars": {
     "SLACK_TEAM_ID": "T08B5H13A1G",
-    "REACTION_TRIGGER_EMOJI": "arrows_counterclockwise"
+    "REACTION_TRIGGER_EMOJI": ""
   },
   "observability": {
     "enabled": true,

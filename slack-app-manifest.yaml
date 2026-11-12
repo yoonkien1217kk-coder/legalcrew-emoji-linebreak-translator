@@ -19,13 +19,7 @@ oauth_config:
       - users:read
       - channels:read
       - groups:read
-      - reactions:read
-      - chat:write
 settings:
-  event_subscriptions:
-    request_url: https://legalcrew-emoji-translator.yoonkien1217kk.workers.dev/slack/events
-    bot_events:
-      - reaction_added
   interactivity:
     is_enabled: true
     request_url: https://legalcrew-emoji-translator.yoonkien1217kk.workers.dev/slack/interactions
